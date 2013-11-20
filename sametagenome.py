@@ -3,8 +3,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
-import json
-import math
+import json, math,sqlite3
 
 
 parser = argparse.ArgumentParser()
@@ -14,6 +13,7 @@ parser.add_argument("-o","--organism", help="target one species")
 parser.add_argument("-p","--penalty", help="penalty for not found allele", default=100, type=int)
 parser.add_argument("--alleles", help="number of top-fitting alleles to be shown", default=1000, type=int)
 parser.add_argument("--minscore", help="minimum score to match (absolute val!)", default=50, type=int)
+parser.add_argument("--mincoverage", help="minimum coverage to produce FASTQ assembler files", default=5, type=int)
 parser.add_argument("--min_read_len", help="minimum length for bowtie2 reads", default=90, type=int)
 parser.add_argument("--graphic", help="generate graphics", action="store_true")
 args=parser.parse_args()
@@ -52,18 +52,24 @@ for line in fil:
 				#sequenceBank[species+'_'+gene].append(SeqRecord(Seq(sequence, IUPAC.unambiguous_dna), id = readCode, description = ''))
 				#sequenceBank[species+'_'+gene].append((readCode,sequence,quality))
 				sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
+				#print readCode
 			else: ignoredReads = ignoredReads+1
 
 for speciesKey,species in cel.items():
 	for geneKey, geneInfo in species.items(): #geni
-		maxLen = 0
-		for geneInfoKey,geneValues in geneInfo.items(): #alleli passata 1
-			if len(geneValues) > maxLen: maxLen = len(geneValues)
+	
+		maxLen = max([len(x) for x in geneInfo.values()])
 
 		for geneInfoKey,geneValues in geneInfo.items(): #alleli passata 2
 			geneLen = len(geneValues)
-			if geneLen == maxLen: cel[speciesKey][geneKey][geneInfoKey] = (sum(item for item in geneValues),maxLen)
-			else: cel[speciesKey][geneKey][geneInfoKey] = (sum(item for item in geneValues) + (maxLen-geneLen)*args.penalty ,geneLen)
+			localScore = sum(item for item in geneValues)
+			
+			averageScore = float(localScore)/float(geneLen)
+			
+			if geneLen != maxLen:
+				localScore = localScore + (maxLen-geneLen)*args.penalty
+			
+			cel[speciesKey][geneKey][geneInfoKey] = (localScore,maxLen,round(averageScore,2)) 
 		
 			if cel[speciesKey][geneKey][geneInfoKey][0] > geneMaxiMin[speciesKey+geneKey][0]:
 				geneMaxiMin[speciesKey+geneKey][0] = cel[speciesKey][geneKey][geneInfoKey][0]
@@ -130,47 +136,76 @@ dfil.write("MAX-ALLELES:\t\t\t"+repr(args.alleles)+'\r\n')
 dfil.write("MIN-THRESHOLD SCORE:\t"+repr(args.minscore)+'\r\n')
 dfil.write("IGNORED:\t\t\t\t"+repr(ignoredReads)+' BAM READS\r\n\r\n------------------------------  RESULTS ------------------------------\r\n')
 
+# cel ['haemophilus']['haemophilus_gene'][allele] = (a, b, c) --> a: summed score, b = maxLen, c = a/b
+
+###################################### OUT FILE 1 (LOG)
 for speciesKey,species in cel.items():
 	dfil.write(speciesKey)
 	dfil.write('\r\n{')
 	for geneKey, geneInfo in species.items(): #geni
 		dfil.write('\t'+geneKey+'\t'+repr((geneMaxiMin[speciesKey+geneKey])[::-1])+'\r\n')
 		dfil.write('\t{\r\n')
-		for geneInfoKey,geneValues in sorted(geneInfo.items(), key= lambda x: x[1]): #alleli
-			dfil.write('\t\t'+geneKey + geneInfoKey+'\t\t'+repr(geneValues[0])+'\t\t'+repr(geneValues[1])+'\r\n')
+		for geneInfoKey,(score,maxLen,average) in sorted(geneInfo.items(), key= lambda x: x[1]): #alleli ordinati
+			dfil.write('\t\t'+geneKey + geneInfoKey+'\t\t'+repr(score)+'\t\t'+repr(maxLen)+'\t\t'+str(average)+'\r\n')
 		dfil.write('\t}\r\n')
 	dfil.write('}\r\n')
 dfil.close()	
-###################################### OUT FILE 2
+###################################### OUT FILE 2 (USEFUL)
+
 
 dfil = open(fileName+'/'+fileName+'.out2','w') 
-dfil.write("# intest #")
+dfil.write("# intest #\r\n\r\n")
+
+print "Sample Contains: "
 
 for speciesKey,species in cel.items():
 	#dfil.write(speciesKey)
 	#dfil.write('\r\n{')
-	for geneKey, geneInfo in species.items(): #geni
-		#dfil.write('\t'+geneKey+'\t'+repr((geneMaxiMin[speciesKey+geneKey])[::-1])+'\r\n')
-		#dfil.write('\t{\r\n')
-		max = float('inf')
+	
+	conn = sqlite3.connect('bsb.db')
+	conn.row_factory = sqlite3.Row
+	c = conn.cursor()
+	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
+	
+	#GENE PRESENCE 
+	for sk in species.keys():
+		tVar[sk] = 1
+	vals = sum([t for t in tVar.values()])
+	
+	# NOT ENOUGH GENES
+	if float(vals)/float(len(tVar)) < 0.8:
+		dfil.write('#'+str(speciesKey)+'\t SKIPPED: Not enough genes ('+str(vals)+' / '+str(len(tVar))+')\r\n')
+		print "\t\033[91m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+	# ENOUGH GENES
+	else:
+		print "\t\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+		for geneKey, geneInfo in species.items(): #geni
 		
-		minv = min([x[0] for x in geneInfo.values()])
-		
-		geneInfo = dict([(k,v) for k,v in geneInfo.items() if v[0] == minv])
-		for geneInfoKey,geneValues in sorted(geneInfo.items(), key= lambda x: x[1]): #allele top
-			dfil.write(str(speciesKey)+'\t'+str(geneKey)+'\t'+str(geneInfoKey)+'\t'+str(geneValues[0])+'\t'+str(geneValues[1])+'\t'+str(geneValues[0]/geneValues[1])+'\t\r\n')
-		#dfil.write('\t}\r\n')
-	#dfil.write('}\r\n')
+			minValue = min([avg for (val,leng,avg) in geneInfo.values()])
+			aElements = dict([(k,(val,leng,avg)) for k,(val,leng,avg) in geneInfo.items() if avg == minValue])
+			
+			dfil.write(str(speciesKey)+'\t'+str(geneKey)+'\t'+str(minValue)+'\t'+repr([geneKey+k for k in aElements])+'\r\n')
 dfil.close()	
 
-for sequenceKey,sequenceRecord in sequenceBank.items():
-	dfil = open(fileName+'/'+sequenceKey+'.fastq','a')
-	for sequenceSpec,(sequence,quality) in sequenceRecord.items():
-		dfil.write('@'+sequenceSpec+'\r\n')  
-		dfil.write(sequence+'\r\n')  
-		dfil.write('+\r\n')  
-		dfil.write(quality+'\r\n')  
-	dfil.close()
+# FASQ FILES (FOR VELVET)
 
-print fileName+' Completed'
+for sequenceKey,sequenceRecord in sequenceBank.items():
+
+	c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE alleleName LIKE ? ORDER BY L DESC LIMIT 1", ('%'+sequenceKey+'%',))
+	genL = c.fetchone()['L']
+	
+	coverage = sum([len(x) for (x,q) in sequenceRecord.values()])
+
+	if coverage >= args.mincoverage * genL:
+		dfil = open(fileName+'/'+sequenceKey+'.fastq','a')
+		print "| FASTQ: assembly file built\t\033[92m", sequenceKey,"\033[0m : "+str(float(coverage)/float(genL))
+		for sequenceSpec,(sequence,quality) in sequenceRecord.items():
+			dfil.write('@'+sequenceSpec+'\r\n')  
+			dfil.write(sequence+'\r\n')  
+			dfil.write('+\r\n')  
+			dfil.write(quality+'\r\n')  
+		dfil.close()
+	else: print "| FASTQ: assembly file built\t\033[93m", sequenceKey,"\033[0m : "+str(float(coverage)/float(genL))
+
+print fileName+'\t\033[92mCompleted\033[0m'
 #print cel
