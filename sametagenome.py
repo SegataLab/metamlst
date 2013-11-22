@@ -54,7 +54,7 @@ for line in fil:
 				sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
 				#print readCode
 			else: ignoredReads = ignoredReads+1
-
+			
 for speciesKey,species in cel.items():
 	for geneKey, geneInfo in species.items(): #geni
 	
@@ -69,7 +69,7 @@ for speciesKey,species in cel.items():
 			if geneLen != maxLen:
 				localScore = localScore + (maxLen-geneLen)*args.penalty
 			
-			cel[speciesKey][geneKey][geneInfoKey] = (localScore,maxLen,round(averageScore,2)) 
+			cel[speciesKey][geneKey][geneInfoKey] = (localScore,maxLen,round(averageScore,1)) 
 		
 			if cel[speciesKey][geneKey][geneInfoKey][0] > geneMaxiMin[speciesKey+geneKey][0]:
 				geneMaxiMin[speciesKey+geneKey][0] = cel[speciesKey][geneKey][geneInfoKey][0]
@@ -156,7 +156,7 @@ dfil.close()
 dfil = open(fileName+'/'+fileName+'.out2','w') 
 dfil.write("# intest #\r\n\r\n")
 
-print "Sample Contains: "
+print "Sample Contains:\r\n-----------------------------------"
 
 for speciesKey,species in cel.items():
 	#dfil.write(speciesKey)
@@ -171,41 +171,48 @@ for speciesKey,species in cel.items():
 	for sk in species.keys():
 		tVar[sk] = 1
 	vals = sum([t for t in tVar.values()])
+	#
 	
 	# NOT ENOUGH GENES
 	if float(vals)/float(len(tVar)) < 0.8:
 		dfil.write('#'+str(speciesKey)+'\t SKIPPED: Not enough genes ('+str(vals)+' / '+str(len(tVar))+')\r\n')
-		print "\t\033[91m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+		print "\033[91m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+		print "\t\t   Missing: \033[91m"+', '.join([sk for (sk,v) in tVar.items() if v == 0])+'\033[0m'
+		
 	# ENOUGH GENES
 	else:
-		print "\t\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+		print "\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
+		print "\t\t   Missing: \033[91m"+', '.join([sk for (sk,v) in tVar.items() if v == 0])+'\033[0m'
+		
+		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+" Allele(s)".ljust(40)
+		
 		for geneKey, geneInfo in species.items(): #geni
 		
 			minValue = min([avg for (val,leng,avg) in geneInfo.values()])
 			aElements = dict([(k,(val,leng,avg)) for k,(val,leng,avg) in geneInfo.items() if avg == minValue])
 			
 			dfil.write(str(speciesKey)+'\t'+str(geneKey)+'\t'+str(minValue)+'\t'+repr([geneKey+k for k in aElements])+'\r\n')
+			
+			sequenceKey = speciesKey+'_'+geneKey
+			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE alleleName LIKE ? ORDER BY L DESC LIMIT 1", ('%'+sequenceKey+'%',))
+			genL = c.fetchone()['L']
+		
+			coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
+			if coverage >= args.mincoverage * genL:
+				fqfil = open(fileName+'/'+sequenceKey+'.fastq','a')
+				color = "\033[92m"
+				for sequenceSpec,(sequence,quality) in sequenceBank[sequenceKey].items():
+					fqfil.write('@'+sequenceSpec+'\r\n')  
+					fqfil.write(sequence+'\r\n')  
+					fqfil.write('+\r\n')  
+					fqfil.write(quality+'\r\n')  
+				fqfil.close()
+			else:  color = "\033[93m"
+			
+			print "  "+color+geneKey.ljust(7)+"\033[0m"+str(round(float(coverage)/float(genL),2)).rjust(10)+"\033[95m"+str(minValue).rjust(6)+"\033[0m"+"\033[94m",repr([k for k in aElements]).ljust(40)+"\033[0m"
+			
 dfil.close()	
-
-# FASQ FILES (FOR VELVET)
-
-for sequenceKey,sequenceRecord in sequenceBank.items():
-
-	c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE alleleName LIKE ? ORDER BY L DESC LIMIT 1", ('%'+sequenceKey+'%',))
-	genL = c.fetchone()['L']
-	
-	coverage = sum([len(x) for (x,q) in sequenceRecord.values()])
-
-	if coverage >= args.mincoverage * genL:
-		dfil = open(fileName+'/'+sequenceKey+'.fastq','a')
-		print "| FASTQ: assembly file built\t\033[92m", sequenceKey,"\033[0m : "+str(float(coverage)/float(genL))
-		for sequenceSpec,(sequence,quality) in sequenceRecord.items():
-			dfil.write('@'+sequenceSpec+'\r\n')  
-			dfil.write(sequence+'\r\n')  
-			dfil.write('+\r\n')  
-			dfil.write(quality+'\r\n')  
-		dfil.close()
-	else: print "| FASTQ: assembly file built\t\033[93m", sequenceKey,"\033[0m : "+str(float(coverage)/float(genL))
+conn.close() 
 
 print fileName+'\t\033[92mCompleted\033[0m'
 #print cel
