@@ -18,15 +18,17 @@ htmlparser = MyHTMLParser()
 parser = argparse.ArgumentParser()
 parser.add_argument("bacteria", help="Bacteria subdomain in mlst website, COMMA SEPARATED")
 parser.add_argument("-d","--download", help="Download Loci", action="store_true") 
+parser.add_argument("-stf","--stfile", help="GET STs from COMMA SEPARATED FILE") 
 args=parser.parse_args()
 
-os.remove('bsb.db')
+#os.remove('bsb.db')
 conn = sqlite3.connect('bsb.db')
+conn.row_factory = sqlite3.Row
 c = conn.cursor()
 c.execute("CREATE TABLE IF NOT EXISTS organisms (bacteriumName varchar(255) PRIMARY KEY)")
 c.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
-c.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,alleleName varchar(255), gene VARCHAR(255), sequence TEXT, alleleVariant INT)")
-c.execute("CREATE TABLE IF NOT EXISTS profiles (redID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, species VARCHAR(255))")
+c.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alleleVariant INT)")
+c.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
 
 #CONN TO MLST
 print args.bacteria.split(',')
@@ -60,21 +62,53 @@ for organism in args.bacteria.split(','):
 
 		out_file.close()
 		seqList = []
+		
 		#DATABASE FILE
 		
 		for seq_record in SeqIO.parse(organism+".faa", "fasta"):
 			seqList.append(SeqRecord(Seq(str(seq_record.seq), IUPAC.unambiguous_dna), id = seq_record.id, description=''))  
-			print str(seq_record.id)
-			c.execute("INSERT INTO alleles (alleleName, gene,sequence, alleleVariant) VALUES (?,?,?,?)", (str(seq_record.id), re.findall('_[a-zA-Z_]*',str(seq_record.id))[0].replace('_',''), str(seq_record.seq),re.findall('[0-9]*$',str(seq_record.id))[0]))
+			
+			alleleName = str(seq_record.id)
+			gene = re.sub('^_','',re.findall('_[a-zA-Z_]*',str(seq_record.id))[0])
+			sequence =  str(seq_record.seq)
+			alleleVariant = re.findall('[0-9]*$',str(seq_record.id))[0]
+			c.execute("INSERT INTO alleles (gene, bacterium,sequence, alleleVariant) VALUES (?,?,?,?)", (gene,organism,sequence,alleleVariant))
+		
 		
 		
 		#PRIFILE FILE 
-		url_2 = 'http://'+organism+'.mlst.net/sql/st_comma.asp'
-		req = urllib2.Request(url_2)
-		rsp = urllib2.urlopen(req)
-		content = rsp.read()
-		content.split('\r\n')
-		print content
+		if args.stfile: 
+			fil = open(args.stfile,'r')
+			content = fil.read()
+			content = content.split('\n')
+		else:
+			url_2 = 'http://'+organism+'.mlst.net/sql/st_comma.asp'
+			req = urllib2.Request(url_2)
+			rsp = urllib2.urlopen(req)
+			content = rsp.read()
+			content = content.split('<br>')
+		
+		for profile in content:
+			profile = profile.split(',')
+			
+			if len(profile) > 1:
+				profileCode = profile[0]
+				cI = 0
+				insertion = []
+				for row in c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(organism,)):
+					cI = cI+1
+					#print cI, profile[cI], str(row['geneName'])
+					insertion.append((profileCode,organism,organism,str(row['geneName']),profile[cI]))
+					
+				c.executemany("INSERT INTO profiles (profileCode, bacterium, alleleCode) VALUES (?,?,(SELECT recID FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?))", insertion)
+						
+				
+			# print structure
+			# for i in range(1,len(profile)):
+				# print i,profile[i]
+				
+				#c.execute("INSERT INTO profiles (profileCode, bacterium, alleleCode) VALUES (?,?,?)", (profileCode,organism,))
+			
 		
 		#c.executemany("INSERT INTO alleles (alleleName, gene,sequence, alleleVariant) VALUES (?,?,?,?)", [(str(seq_record.id), re.findall('_[a-zA-Z_]*',str(seq_record.id))[0].replace('_',''), str(seq_record.seq),re.findall('[0-9]*$',str(seq_record.id))[0]) for seq_record in seqList]) 
  

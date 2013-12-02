@@ -165,6 +165,7 @@ for speciesKey,species in cel.items():
 	conn = sqlite3.connect('bsb.db')
 	conn.row_factory = sqlite3.Row
 	c = conn.cursor()
+	d = conn.cursor()
 	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
 	
 	#GENE PRESENCE 
@@ -184,17 +185,27 @@ for speciesKey,species in cel.items():
 		print "\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
 		print "\t\t   Missing: \033[91m"+', '.join([sk for (sk,v) in tVar.items() if v == 0])+'\033[0m'
 		
-		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+" Allele(s)".ljust(40)
+		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+"Hits".rjust(5)+" Allele(s)".ljust(40)
 		
+		profileTrack = []
 		for geneKey, geneInfo in species.items(): #geni
 		
 			minValue = min([avg for (val,leng,avg) in geneInfo.values()])
-			aElements = dict([(k,(val,leng,avg)) for k,(val,leng,avg) in geneInfo.items() if avg == minValue])
+			
+			aElements = {}
+			tmp=[]
+			for k,(val,leng,avg) in geneInfo.items():
+				if avg == minValue:
+					aElements[k]=(val,leng,avg)
+					tmp.append(k)
+			tmp = ",".join(tmp)
+			
+			profileTrack = profileTrack + [str(row['recID']) for row in c.execute("SELECT recID FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant IN ("+tmp+")",(speciesKey,geneKey))]
 			
 			dfil.write(str(speciesKey)+'\t'+str(geneKey)+'\t'+str(minValue)+'\t'+repr([geneKey+k for k in aElements])+'\r\n')
 			
 			sequenceKey = speciesKey+'_'+geneKey
-			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE alleleName LIKE ? ORDER BY L DESC LIMIT 1", ('%'+sequenceKey+'%',))
+			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
 			genL = c.fetchone()['L']
 		
 			coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
@@ -205,12 +216,19 @@ for speciesKey,species in cel.items():
 					fqfil.write('@'+sequenceSpec+'\r\n')  
 					fqfil.write(sequence+'\r\n')  
 					fqfil.write('+\r\n')  
-					fqfil.write(quality+'\r\n')  
+					fqfil.write(quality+'\r\n') 
 				fqfil.close()
 			else:  color = "\033[93m"
 			
-			print "  "+color+geneKey.ljust(7)+"\033[0m"+str(round(float(coverage)/float(genL),2)).rjust(10)+"\033[95m"+str(minValue).rjust(6)+"\033[0m"+"\033[94m",repr([k for k in aElements]).ljust(40)+"\033[0m"
+			print "  "+color+geneKey.ljust(7)+"\033[0m"+str(round(float(coverage)/float(genL),2)).rjust(10)+"\033[95m"+str(minValue).rjust(6)+str(aElements.itervalues().next()[1]).rjust(5)+"\033[0m"+"\033[94m",tmp.ljust(40)+"\033[0m"
 			
+		print ""
+		
+		for row in c.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC"):
+			matchScore = str(round(float(row['T']) / float(len(tVar)),4)*100)+' %'
+			print ("  MLST PROFILE "+str(row['profileCode'])).ljust(23)+str("MATCH: "+matchScore).rjust(10)
+			
+			v = [riw['sequence'] for riw in d.execute("SELECT sequence FROM profiles,alleles WHERE alleleCode = alleles.recID AND profiles.bacterium = ? AND profileCode = ?",(speciesKey,row['profileCode']))]
 dfil.close()	
 conn.close() 
 
