@@ -2,6 +2,7 @@
 
 from Bio import SeqIO
 import sqlite3
+import cStringIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
@@ -27,7 +28,7 @@ conn.row_factory = sqlite3.Row
 c = conn.cursor()
 c.execute("CREATE TABLE IF NOT EXISTS organisms (bacteriumName varchar(255) PRIMARY KEY)")
 c.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
-c.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alleleVariant INT)")
+c.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
 c.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
 
 #CONN TO MLST
@@ -46,9 +47,10 @@ for organism in args.bacteria.split(','):
 
 	c.execute("INSERT INTO organisms (bacteriumName) VALUES (?)",(organism,))
 	c.executemany("INSERT INTO genes (geneNAme, bacterium) VALUES (?,?)", [(locus,organism) for locus in loci])
-
+ 
 	if args.download:
 
+	
 		#FASTA FILE (bowtie index)
 		out_file = open(organism+".faa","w")
 		for locus in loci:
@@ -59,6 +61,7 @@ for organism in args.bacteria.split(','):
 			cs = re.split('<textarea[^>]*>',content)
 			cs = re.split('</textarea>',cs[1])
 			out_file.write(cs[0].replace('&gt;','>'+organism+'_'))
+			fastaString = fastaString + (cs[0].replace('&gt;','>'+organism+'_'))
 
 		out_file.close()
 		seqList = []
@@ -73,8 +76,7 @@ for organism in args.bacteria.split(','):
 			sequence =  str(seq_record.seq)
 			alleleVariant = re.findall('[0-9]*$',str(seq_record.id))[0]
 			c.execute("INSERT INTO alleles (gene, bacterium,sequence, alleleVariant) VALUES (?,?,?,?)", (gene,organism,sequence,alleleVariant))
-		
-		
+
 		
 		#PRIFILE FILE 
 		if args.stfile: 
