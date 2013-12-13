@@ -5,7 +5,27 @@ from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import json, math,sqlite3
 
+conn = sqlite3.connect('bsb.db')
+conn.row_factory = sqlite3.Row
 
+def alleleInProfile(bacterium,gene,allele,profile):
+	
+	e = conn.cursor()
+	e.execute("SELECT 1 FROM profiles,alleles WHERE alleleCode = alleles.recID AND profileCode = ? AND alleleVariant = ? AND gene = ? AND profiles.bacterium = ?",(profile,allele,gene,bacterium))
+	return (len(e.fetchall()) > 0)
+
+def alleleInManyProfile(bacterium,gene,allele,profileList):
+	
+	e = conn.cursor()
+	profileString = ','.join([str(x) for x in profileList])
+	e.execute("SELECT 1 FROM profiles,alleles WHERE alleleCode = alleles.recID AND profileCode IN ("+profileString+")  AND alleleVariant = ? AND gene = ? AND profiles.bacterium = ?",(allele,gene,bacterium))
+	return (len(e.fetchall()) > 0)
+	
+def db_getSequence(bacterium,gene,allele):
+	e = conn.cursor()
+	e.execute("SELECT sequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
+	return (e.fetchone()['sequence'])
+	
 parser = argparse.ArgumentParser()
 parser.add_argument("bowfile", help="BOWTIE2 file containing the sequences")
 #parser.add_argument("-i,--text", help="Information on the sample" action="store_true")
@@ -23,6 +43,10 @@ cel = {}
 geneMaxiMin = {}
 sequenceBank = {}
 ignoredReads = 0
+
+
+c = conn.cursor()
+d = conn.cursor()
 
 for line in fil:
 	if(line[0] != '@'): 
@@ -162,10 +186,6 @@ for speciesKey,species in cel.items():
 	#dfil.write(speciesKey)
 	#dfil.write('\r\n{')
 	
-	conn = sqlite3.connect('bsb.db')
-	conn.row_factory = sqlite3.Row
-	c = conn.cursor()
-	d = conn.cursor()
 	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
 	
 	#GENE PRESENCE 
@@ -224,11 +244,39 @@ for speciesKey,species in cel.items():
 			
 		print ""
 		
+		matchingProfiles = []
 		for row in c.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC"):
 			matchScore = str(round(float(row['T']) / float(len(tVar)),4)*100)+' %'
 			print ("  MLST PROFILE "+str(row['profileCode'])).ljust(23)+str("MATCH: "+matchScore).rjust(10)
+			matchingProfiles.append(row['profileCode'])
+			#v = [riw['sequence'] for riw in ]
 			
-			v = [riw['sequence'] for riw in d.execute("SELECT sequence FROM profiles,alleles WHERE alleleCode = alleles.recID AND profiles.bacterium = ? AND profileCode = ?",(speciesKey,row['profileCode']))]
+		sampleSequence = ''
+		for geneKey, geneInfo in sorted(species.items(), key= lambda x: x[0]): #geni, passata 2
+			alleles = [k for k,(val,leng,avg) in geneInfo.items() if avg == min([avg for (val,leng,avg) in geneInfo.values()])]
+			
+			kt=0
+			
+			for allele in alleles:
+				kt = kt+1
+				if alleleInManyProfile(speciesKey,geneKey,allele,matchingProfiles): 
+					print ' \033[92m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
+					sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
+					break
+				else:
+					if kt == len(alleles):
+						sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
+						print ' \033[94m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
+					else: 
+						print ' \033[91m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tNOT FOUND'
+				
+				
+		
+		outSequence = []
+		outSequence.append(SeqRecord(Seq(sampleSequence, IUPAC.unambiguous_dna), id = 'sample_'+str(speciesKey)+' [closest profile(s): '+repr(matchingProfiles)+']', description = speciesKey))
+		SeqIO.write(outSequence, 'seq_'+speciesKey+'.fasta', "fasta")
+		
+		fqfil = open(fileName+'/'+sequenceKey+'.fastq','a')
 dfil.close()	
 conn.close() 
 
