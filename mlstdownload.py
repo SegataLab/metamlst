@@ -2,12 +2,13 @@
 
 from Bio import SeqIO
 import sqlite3
-import cStringIO
+from StringIO import StringIO
 from Bio.Seq import Seq
+from Bio.Align.Applications import MuscleCommandline
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import argparse
-import urllib, urllib2, cookielib, re, os
+import urllib, urllib2, cookielib, re, os, subprocess, sys
 from HTMLParser import HTMLParser
 # create a subclass and override the handler methods
 class MyHTMLParser(HTMLParser):
@@ -15,6 +16,14 @@ class MyHTMLParser(HTMLParser):
         if data.strip() != '': loci.append(data.strip())
 htmlparser = MyHTMLParser()
 
+class bcolors:
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	OKGREEN2 = '\033[42m\033[30m'
 
 parser = argparse.ArgumentParser()
 parser.add_argument("bacteria", help="Bacteria subdomain in mlst website, COMMA SEPARATED")
@@ -49,36 +58,56 @@ for organism in args.bacteria.split(','):
 	c.executemany("INSERT INTO genes (geneNAme, bacterium) VALUES (?,?)", [(locus,organism) for locus in loci])
  
 	if args.download:
-
+		seqToAlign = {}
 	
 		#FASTA FILE (bowtie index)
 		out_file = open(organism+".faa","w")
 		for locus in loci:
+			print bcolors.OKBLUE+locus+bcolors.ENDC
+			print(('\tDownloading genes/alleles:').ljust(60)),
 			url_2 = 'http://'+organism+'.mlst.net/sql/fasta.asp?allele='+locus
 			req = urllib2.Request(url_2)
 			rsp = urllib2.urlopen(req)
 			content = rsp.read()
 			cs = re.split('<textarea[^>]*>',content)
 			cs = re.split('</textarea>',cs[1])
-			out_file.write(cs[0].replace('&gt;','>'+organism+'_'))
-			fastaString = fastaString + (cs[0].replace('&gt;','>'+organism+'_'))
+			out_file.write(cs[0].replace('&gt;','>'+organism+'_')) #write for bowtie index .fasta file
+			print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)
+			#from StringIO import StringIO
+			cString = StringIO(cs[0].replace('&gt;','>'+organism+'_'))
+			
+			recList = SeqIO.parse(cString, "fasta")
+			
+			#ALIGNMENT
+			print(('\tAligning Sequences:').ljust(60)),
+			sys.stdout.flush()
+			muscle_cline = MuscleCommandline("tools/muscle")
+			alignTable={}
+			stdout, stderr = muscle_cline(stdin=cString.getvalue())
+			for sequence in SeqIO.parse(StringIO(stdout), "fasta"):
+				alignTable[sequence.id] = str(sequence.seq)
+			print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)
+			
+			#INSERTION
+			insertionList = []
+			for seq_record in recList:
+				#seqList.append(SeqRecord(Seq(str(seq_record.seq), IUPAC.unambiguous_dna), id = seq_record.id, description=''))  
+				alleleName = str(seq_record.id)
+				gene = re.sub('^_','',re.findall('_[a-zA-Z_]*',str(seq_record.id))[0])
+				sequence =  str(seq_record.seq)
+				alleleVariant = re.findall('[0-9]*$',str(seq_record.id))[0]
+				insertionList.append((gene,organism,sequence,alignTable[alleleName],alleleVariant))
+				
+			print(('\tWriting to DB:').ljust(60)),
+			c.executemany("INSERT INTO alleles (gene, bacterium,sequence,alignedSequence, alleleVariant) VALUES (?,?,?,?,?)", insertionList)
+			print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)
+			
 
 		out_file.close()
 		seqList = []
 		
-		#DATABASE FILE
-		
-		for seq_record in SeqIO.parse(organism+".faa", "fasta"):
-			seqList.append(SeqRecord(Seq(str(seq_record.seq), IUPAC.unambiguous_dna), id = seq_record.id, description=''))  
-			
-			alleleName = str(seq_record.id)
-			gene = re.sub('^_','',re.findall('_[a-zA-Z_]*',str(seq_record.id))[0])
-			sequence =  str(seq_record.seq)
-			alleleVariant = re.findall('[0-9]*$',str(seq_record.id))[0]
-			c.execute("INSERT INTO alleles (gene, bacterium,sequence, alleleVariant) VALUES (?,?,?,?)", (gene,organism,sequence,alleleVariant))
-
-		
-		#PRIFILE FILE 
+		#PROFILE FILE 
+		print(('Parsing MLST profiles:').ljust(67)),
 		if args.stfile: 
 			fil = open(args.stfile,'r')
 			content = fil.read()
@@ -99,22 +128,11 @@ for organism in args.bacteria.split(','):
 				insertion = []
 				for row in c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(organism,)):
 					cI = cI+1
-					#print cI, profile[cI], str(row['geneName'])
 					insertion.append((profileCode,organism,organism,str(row['geneName']),profile[cI]))
 					
 				c.executemany("INSERT INTO profiles (profileCode, bacterium, alleleCode) VALUES (?,?,(SELECT recID FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?))", insertion)
 						
-				
-			# print structure
-			# for i in range(1,len(profile)):
-				# print i,profile[i]
-				
-				#c.execute("INSERT INTO profiles (profileCode, bacterium, alleleCode) VALUES (?,?,?)", (profileCode,organism,))
-			
-		
-		#c.executemany("INSERT INTO alleles (alleleName, gene,sequence, alleleVariant) VALUES (?,?,?,?)", [(str(seq_record.id), re.findall('_[a-zA-Z_]*',str(seq_record.id))[0].replace('_',''), str(seq_record.seq),re.findall('[0-9]*$',str(seq_record.id))[0]) for seq_record in seqList]) 
- 
-
+		print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)	
 
 conn.commit()
 conn.close() 

@@ -23,8 +23,8 @@ def alleleInManyProfile(bacterium,gene,allele,profileList):
 	
 def db_getSequence(bacterium,gene,allele):
 	e = conn.cursor()
-	e.execute("SELECT sequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
-	return (e.fetchone()['sequence'])
+	e.execute("SELECT alignedSequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
+	return (e.fetchone()['alignedSequence'])
 	
 parser = argparse.ArgumentParser()
 parser.add_argument("bowfile", help="BOWTIE2 file containing the sequences")
@@ -276,7 +276,6 @@ for speciesKey,species in cel.items():
 		outSequence.append(SeqRecord(Seq(sampleSequence, IUPAC.unambiguous_dna), id = 'sample_'+str(speciesKey)+' [closest profile(s): '+repr(matchingProfiles)+']', description = speciesKey))
 		SeqIO.write(outSequence, 'seq_'+speciesKey+'.fasta', "fasta")
 		
-		fqfil = open(fileName+'/'+sequenceKey+'.fastq','a')
 dfil.close()	
 conn.close() 
 
