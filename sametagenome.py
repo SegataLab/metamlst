@@ -3,7 +3,8 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
-import json, math,sqlite3
+from StringIO import StringIO
+import json, math,sqlite3,itertools,subprocess
 
 conn = sqlite3.connect('bsb.db')
 conn.row_factory = sqlite3.Row
@@ -25,6 +26,92 @@ def db_getSequence(bacterium,gene,allele):
 	e = conn.cursor()
 	e.execute("SELECT alignedSequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
 	return (e.fetchone()['alignedSequence'])
+	
+def db_getUnalSequence(bacterium,gene,allele):
+	e = conn.cursor()
+	e.execute("SELECT sequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
+	return (e.fetchone()['sequence'])
+	
+def buildConsensus(samFile,chromosomeList):
+
+	chromosomes = {}
+	chromosomesLen = {}
+
+	strr=''
+
+	for line in samFile: 
+		pox = 0 
+		for chromoKey in chromosomeList.keys(): 
+			if re.match('.*'+chromoKey+'[^0-9].*',line):
+				pox = 1 
+				break
+		if not pox: 
+			continue
+		
+		if line.startswith("@SQ"): 						#chromosomes data
+			chromosomesLen[line.split('\t')[1].replace('SN:','')] = int(line.split('\t')[2].replace('LN:',''))
+			strr+=line
+		elif line.startswith("@"): strr+=line 			#other data
+		else: 											#align data
+			tline = line.split('\t')
+			tline[1] = str(int(tline[1]) & 0b1111011111111)
+			strr+='\t'.join(tline)
+			
+			# strr+=line
+
+	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE)
+	out = StringIO(child.communicate(strr)[0]) 
+
+	for line in out: 
+		chromosome = line.split('\t')[0]
+		nucleotide = int(line.split('\t')[1]) 
+		
+		if line.split('\t')[4] == '': continue
+		
+		if chromosome not in chromosomes: chromosomes[chromosome] = {}
+		ldict = {'A':0, 'T':0, 'C':0,'G':0}
+		for chr in line.split('\t')[4]:
+			if chr.upper() in ldict: ldict[chr.upper()] += 1
+		#if nucleotide <=100 and nucleotide >= 80: continue
+		chromosomes[chromosome][nucleotide] = max(ldict, key=ldict.get)
+		
+	seqRec=[]
+
+	for chromo,nucleots in chromosomes.items(): 
+		sequen = ""
+		lastSet = 0
+		#print ">"+chromo, chromosomesLen[chromo]
+		for key,nucleotide in sorted(nucleots.items(), key=lambda x : x[0]):
+			if lastSet+1 != key:
+				sequen = sequen + "N" * (key-(lastSet+1))
+			lastSet = key
+			sequen = sequen + nucleotide
+			
+		sequen+=((chromosomesLen[chromo]-len(sequen))*"N")
+		
+		rSequen = list(sequen)
+		dbSequen = chromosomeList[chromo] 
+		
+		i=0
+		cIndex=0
+		SNPs=0 
+		
+		
+		for chr in rSequen:
+			if chr == 'N':
+				rSequen[i] = dbSequen[i]
+				cIndex+=1
+			if rSequen[i] != dbSequen[i]: 
+				print rSequen[i],"differs:",dbSequen[i],chromo,i
+				SNPs+=1
+			i+=1
+		sequen = ''.join(rSequen)
+		
+		print sequen
+		print dbSequen
+			
+		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI:'+str(cIndex)+'_SNPs:'+str(SNPs)))
+	return seqRec
 	
 parser = argparse.ArgumentParser()
 parser.add_argument("bowfile", help="BOWTIE2 file containing the sequences")
@@ -48,7 +135,9 @@ ignoredReads = 0
 c = conn.cursor()
 d = conn.cursor()
 
-for line in fil:
+samFileContent = fil.readlines()
+
+for line in samFileContent:
 	if(line[0] != '@'): 
 		read = line.split('\t')
 		readCode = read[0]
@@ -78,7 +167,8 @@ for line in fil:
 				sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
 				#print readCode
 			else: ignoredReads = ignoredReads+1
-			
+
+#COMPILES THE DATA STRUCTURE 			
 for speciesKey,species in cel.items():
 	for geneKey, geneInfo in species.items(): #geni
 	
@@ -189,6 +279,11 @@ for speciesKey,species in cel.items():
 	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
 	
 	#GENE PRESENCE 
+	if len(tVar) <= len(species.keys()):
+		print "\033[43m\033[30mDatabase is broken. Exiting\033[0m"
+		import sys
+		sys.exit(0)
+	
 	for sk in species.keys():
 		tVar[sk] = 1
 	vals = sum([t for t in tVar.values()])
@@ -225,18 +320,18 @@ for speciesKey,species in cel.items():
 			dfil.write(str(speciesKey)+'\t'+str(geneKey)+'\t'+str(minValue)+'\t'+repr([geneKey+k for k in aElements])+'\r\n')
 			
 			sequenceKey = speciesKey+'_'+geneKey
-			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
+			c.execute("SELECT LENGTH(alignedSequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
 			genL = c.fetchone()['L']
 		
 			coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
 			if coverage >= args.mincoverage * genL:
-				fqfil = open(fileName+'/'+sequenceKey+'.fastq','a')
+				fqfil = open(fileName+'/'+sequenceKey+'.fasta','a')
 				color = "\033[92m"
 				for sequenceSpec,(sequence,quality) in sequenceBank[sequenceKey].items():
-					fqfil.write('@'+sequenceSpec+'\r\n')  
+					fqfil.write('>'+sequenceSpec+'\r\n')  
 					fqfil.write(sequence+'\r\n')  
-					fqfil.write('+\r\n')  
-					fqfil.write(quality+'\r\n') 
+					#fqfil.write('+\r\n')  
+					#fqfil.write(quality+'\r\n') 
 				fqfil.close()
 			else:  color = "\033[93m"
 			
@@ -251,30 +346,44 @@ for speciesKey,species in cel.items():
 			matchingProfiles.append(row['profileCode'])
 			#v = [riw['sequence'] for riw in ]
 			
-		sampleSequence = ''
-		for geneKey, geneInfo in sorted(species.items(), key= lambda x: x[0]): #geni, passata 2
-			alleles = [k for k,(val,leng,avg) in geneInfo.items() if avg == min([avg for (val,leng,avg) in geneInfo.values()])]
-			
-			kt=0
-			
-			for allele in alleles:
-				kt = kt+1
-				if alleleInManyProfile(speciesKey,geneKey,allele,matchingProfiles): 
-					print ' \033[92m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
-					sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
-					break
-				else:
-					if kt == len(alleles):
-						sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
-						print ' \033[94m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
-					else: 
-						print ' \033[91m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tNOT FOUND'
-				
-				
+		sampleSequence = '' #for organism
 		
-		outSequence = []
-		outSequence.append(SeqRecord(Seq(sampleSequence, IUPAC.unambiguous_dna), id = 'sample_'+str(speciesKey)+' [closest profile(s): '+repr(matchingProfiles)+']', description = speciesKey))
-		SeqIO.write(outSequence, 'seq_'+speciesKey+'.fasta', "fasta")
+		
+		# for geneKey, geneInfo in sorted(species.items(), key= lambda x: x[0]):
+			# alleles = [geneKey+'_'+str(k) for k,(val,leng,avg) in geneInfo.items() if avg == min([avg1 for (val1,leng1,avg1) in geneInfo.values()])]
+			# for allele in alleles:
+			
+			
+		l = [[(speciesKey+'_'+g1+k,db_getUnalSequence(speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == min([avg1 for (val1,leng1,avg1) in g2.values()])] for g1,g2 in species.items()]
+		
+		loom = buildConsensus(samFileContent, dict(itertools.chain(*l)))
+		
+		for record in loom:
+			print repr(record)
+
+		
+		## GLOBAL SEQUENCE 
+		# for geneKey, geneInfo in sorted(species.items(), key= lambda x: x[0]): #for each (ordered) gene of the organism
+	
+			# alleles = [k for k,(val,leng,avg) in geneInfo.items() if avg == min([avg1 for (val1,leng1,avg1) in geneInfo.values()])]
+			# kt=0
+			
+			# for allele in alleles:
+				# kt = kt+1
+				# if alleleInManyProfile(speciesKey,geneKey,allele,matchingProfiles): 
+					# print ' \033[92m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
+					# sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
+					# break
+				# else:
+					# if kt == len(alleles):
+						# sampleSequence = sampleSequence + db_getSequence(speciesKey,geneKey,allele)
+						# print ' \033[94m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tFOUND! Adding...'
+					# else: 
+						# print ' \033[91m',(str(geneKey)+str(allele)).ljust(10),'\033[0m\tNOT FOUND'
+		
+		# outSequence = []
+		# outSequence.append(SeqRecord(Seq(sampleSequence, IUPAC.unambiguous_dna), id = 'sample_'+str(speciesKey)+' [closest profile(s): '+repr(matchingProfiles)+']', description = speciesKey))
+		# SeqIO.write(outSequence, 'seq_'+speciesKey+'.fasta', "fasta")
 		
 dfil.close()	
 conn.close() 
