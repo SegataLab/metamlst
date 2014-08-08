@@ -4,7 +4,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 from StringIO import StringIO
-import json, math,sqlite3,itertools,subprocess,time
+import json, math,sqlite3,itertools,subprocess,time,gc
  
 def alleleInProfile(bacterium,gene,allele,profile):
 	e = conn.cursor()
@@ -49,7 +49,14 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 	chromosomesLen = {}
 
 	strr=''
-	for line in samFile:
+	filterSpec = chromosomeList.keys()[0].split('_')[0].strip()
+	
+	fili = open(samFile,'r')
+	devnull = open('/dev/null', 'w')
+	child = subprocess.Popen("samtools view -h - | grep "+filterSpec,shell=True, stdout=subprocess.PIPE, stdin = fili)
+	# samFileContentAK = StringIO(child.communicate()[0]) 
+	
+	for line in child.stdout:
 	
 		pox = 0 
 		line = line.strip()
@@ -84,7 +91,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
 	out = StringIO(child.communicate(strr)[0]) 
-	#print out.getvalue()
+	
 	for line in out:  
 		chromosome = line.split('\t')[0]
 		nucleotide = int(line.split('\t')[1]) 
@@ -122,7 +129,8 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 			
 		#if nucleotide <=100 and nucleotide >= 80: continue
 		chromosomes[chromosome][nucleotide] = max(ldict, key=ldict.get)
-		
+	
+	del out
 	seqRec=[]
 
 	for chromo,nucleots in chromosomes.items(): 
@@ -162,19 +170,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 	print '\r',
 	return seqRec
- 
-def guess_input_format(inp_file):
-    with open(inp_file) as inpf:
-        for i,l in enumerate(inpf):
-            line = l.strip()
-            if line[0] == '#': continue
-            if line[0] == '>': return 'multifasta'
-            if line[0] == '@': return 'multifastq'
-            if len(l.split('\t')) == 12: return 'blastout'
-            if len(l.split('\t')) == 2: return 'bowtie2out'
-            if i > 20: break
-    return None
-	
+ 	
 parser = argparse.ArgumentParser()
 parser.add_argument("file", help="BAM file containing the sequences")
 #parser.add_argument("-i,--text", help="Information on the sample" action="store_true")
@@ -189,6 +185,7 @@ parser.add_argument("--out_folder", help="Output Folder")
 parser.add_argument("--mincoverage", help="minimum coverage to produce FASTQ assembler files", default=5, type=int)
 parser.add_argument("--min_read_len", help="minimum length for bowtie2 reads", default=90, type=int)
 parser.add_argument("--max_xM", help="maximum XM", default=20, type=int)
+parser.add_argument("--min_accuracy", help="minimum percentage of allele-reconstruction for each organism to pass", default=0.33, type=float)
 
 parser.add_argument("--present_genes", help="percentage of genes needed to be present in organism, default: 100", default=100, type=int)
 parser.add_argument("--log", help="generate logs", action="store_true") 
@@ -208,7 +205,6 @@ geneMaxiMin = {}
 sequenceBank = {}
 ignoredReads = 0
 
-
 c = conn.cursor()
 d = conn.cursor()
 
@@ -222,11 +218,10 @@ else:
 
 devnull = open('/dev/null', 'w')
 child = subprocess.Popen("samtools view -h - ",shell=True, stdout=subprocess.PIPE, stdin = fil)
-samFileContent = StringIO(child.communicate()[0]) 
  
 #samFileContent = fil.readlines()
 
-for line in samFileContent:
+for line in child.stdout:
 	if(line[0] != '@'): 
 		read = line.split('\t')
 		readCode = read[0]
@@ -234,10 +229,12 @@ for line in samFileContent:
 		# gene = re.findall('_[a-zA-Z_]*',read[2])[0].replace('_','')
 		# allele = re.findall('[0-9]*$',read[2])[0]
 		
-		
-		species = read[2].split('_')[0]
-		gene = read[2].split('_')[1]
-		allele = read[2].split('_')[2]
+		# (Added)
+		species,gene,allele = read[2].split('_')
+		# (Removed)
+		# species = read[2].split('_')[0]
+		# gene = read[2].split('_')[1]
+		# allele = read[2].split('_')[2]
 		
 		score = (int)((read[11]).split(':')[2])
 		xM = (int)((read[14]).split(':')[2])
@@ -249,18 +246,25 @@ for line in samFileContent:
 			if score >= args.minscore and len(sequence) >= args.min_read_len and xM <= args.max_xM:
 				if species not in cel: cel[species] = {} #new species
 			
-				if gene not in cel[species]: #new gene
+				if gene not in cel[species]: #found a new gene
 					cel[species][gene] = {}
-					geneMaxiMin[species+gene] = [0,float("inf")]
+					if args.log: geneMaxiMin[species+gene] = [0,float("inf")]
+					#Removed: (De-comment to have sequences and quality for FASTQ generation)
 					sequenceBank[species+'_'+gene] = {}
+					# sequenceBank[species+'_'+gene] = []
 					
-				if allele not in cel[species][gene]: #new allele
+				if allele not in cel[species][gene]: #found a new allele
 					cel[species][gene][allele] = []
 				
 				cel[species][gene][allele].append(score)
 				#sequenceBank[species+'_'+gene].append(SeqRecord(Seq(sequence, IUPAC.unambiguous_dna), id = readCode, description = ''))
 				#sequenceBank[species+'_'+gene].append((readCode,sequence,quality))
-				sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
+				
+				# Removed: (De-comment to have seuqences and quality for FASTQ generation)
+					# sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
+				sequenceBank[species+'_'+gene][readCode]=len(sequence)
+				# sequenceBank[species+'_'+gene][readCode] 
+				
 				#print readCode
 			else: ignoredReads = ignoredReads+1
 
@@ -282,11 +286,12 @@ for speciesKey,species in cel.items():
 			averageScore = float(localScore)/float(geneLen)
 			cel[speciesKey][geneKey][geneInfoKey] = (localScore,maxLen,round(averageScore,1)) 
 		
-			if cel[speciesKey][geneKey][geneInfoKey][0] > geneMaxiMin[speciesKey+geneKey][0]:
-				geneMaxiMin[speciesKey+geneKey][0] = cel[speciesKey][geneKey][geneInfoKey][0]
-				
-			if cel[speciesKey][geneKey][geneInfoKey][0] < geneMaxiMin[speciesKey+geneKey][1]:
-				geneMaxiMin[speciesKey+geneKey][1] = cel[speciesKey][geneKey][geneInfoKey][0]
+			if args.log:
+				if cel[speciesKey][geneKey][geneInfoKey][0] > geneMaxiMin[speciesKey+geneKey][0]:
+					geneMaxiMin[speciesKey+geneKey][0] = cel[speciesKey][geneKey][geneInfoKey][0]
+					
+				if cel[speciesKey][geneKey][geneInfoKey][0] < geneMaxiMin[speciesKey+geneKey][1]:
+					geneMaxiMin[speciesKey+geneKey][1] = cel[speciesKey][geneKey][geneInfoKey][0]
 
 
 		
@@ -356,21 +361,22 @@ for speciesKey,species in cel.items():
 					tmp.append(k)
 			tmp = ",".join(tmp)
 			
-			# profileTrack = profileTrack + [str(row['recID']) for row in c.execute("SELECT recID FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant IN ("+tmp+")",(speciesKey,geneKey))]
-			
-			
 			sequenceKey = speciesKey+'_'+geneKey
 			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
 			genL = c.fetchone()['L']
-		
-			coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
-			if coverage >= args.mincoverage * genL:
+			#Removed: de-comment to have sequences and quality for FASTQ generation
+				# coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
+			# print [x for (x,q) in sequenceBank[sequenceKey].values()]
+			coverage = sum([x for x in sequenceBank[sequenceKey].values()])
+			
+			if coverage >= args.mincoverage * genL: 
 				color = "\033[92m"
-				# fqfil = open(workUnit+'/'+sequenceKey+'.fasta','a')
-				# for sequenceSpec,(sequence,quality) in sequenceBank[sequenceKey].items():
-				#	fqfil.write('>'+sequenceSpec+'\r\n')  
-				#	fqfil.write(sequence+'\r\n')   
-				# fqfil.close()
+				#Removed: de-comment to have seque nces and quality for FASTQ generation
+					# fqfil = open(workUnit+'/'+sequenceKey+'.fasta','a')
+					# for sequenceSpec,(sequence,quality) in sequenceBank[sequenceKey].items():
+					#	fqfil.write('>'+sequenceSpec+'\r\n')  
+					#	fqfil.write(sequence+'\r\n')   
+					# fqfil.close()
 			else:  color = "\033[93m"
 			
 			print "  "+color+geneKey.ljust(7)+"\033[0m"+str(round(float(coverage)/float(genL),2)).rjust(10)+"\033[95m"+str(minValue).rjust(6)+str(aElements.itervalues().next()[1]).rjust(5)+"\033[0m"+"\033[94m",tmp.ljust(40)+"\033[0m"
@@ -394,7 +400,7 @@ for speciesKey,species in cel.items():
 		print "      Consensous Sequence Build"
 			
 		l = [[(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])][0] for g1,g2 in species.items()] 
-		consenSeq = buildConsensus(samFileContent.getvalue().split('\n'), dict(l),args.minscore,args.max_xM)
+		consenSeq = buildConsensus(args.file, dict(l),args.minscore,args.max_xM)
 		
 		#_V2
 		# l = [[(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])] for g1,g2 in species.items()] 
@@ -403,14 +409,16 @@ for speciesKey,species in cel.items():
 		newProfile = 0
 		finWrite = 1
 		#print "      "+"Gene".ljust(6)+'Ref.'.ljust(7)+"Length".rjust(10)+"Ns".rjust(10)+"SNPs".rjust(10)
-		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"Accuracy".rjust(9)+"SNPs".rjust(10)+"Notes".rjust(10)
+		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(10)+"Accuracy".rjust(9)+"Notes".rjust(10)
 		for l in consenSeq:
 			holes = str(l.description.split('_')[0].split('::')[1])
 			snps = int(l.description.split('_')[1].split('::')[1])
 			leng = str(len(l.seq))
 			leng_ns = str(round(1-float(holes)/float(leng),4)*100)+' %'
 			l.seqLen = len(l.seq)
-			if (1-float(holes)/float(leng)) <= 0.33: finWrite = 0
+			
+			# If there's a gene with low accuracy, the whole organism is discarded for this sample
+			if (1-float(holes)/float(leng)) <= args.min_accuracy: finWrite = 0
 			
 			if snps > 0:
 				seqFind = sequenceFind(speciesKey,l.seq)
@@ -423,7 +431,7 @@ for speciesKey,species in cel.items():
 				newAllele = '--'
 				if not args.all_sequences: l.seq = ''
 			
-			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+leng_ns.rjust(9)+str(snps).rjust(10)+newAllele.rjust(10)
+			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(10)+leng_ns.rjust(9)+newAllele.rjust(10)
 			
 		
 		print ''
@@ -438,18 +446,21 @@ for speciesKey,species in cel.items():
 					# newProfile=1
 					
 		if finWrite:
-			print 'Reconstruction Successful. Write'
+			print '  Reconstruction Successful > Write'
 			profil = open(workUnit+'/'+fileName+'.txt','a')	 
+			#recd.description.split('_')[0] = "CI::Confidence_Index_value << Ns"
+			#recd.description.split('_')[1] = "SN::SNPs_values << SNPs"
 			profil.write(speciesKey+'\t'+fileName+'\t'+"\t".join([recd.id+"::"+str(recd.seq)+'::'+str(round(1-float(recd.description.split('_')[0].split('::')[1])/float(recd.seqLen),4)*100)+'::'+str(round(float(recd.description.split('_')[1].split('::')[1])/float(recd.seqLen),4)*100) for recd in consenSeq])+'\r\n')
 			
-			
-			 
 			profil.close()
-		else: print 'Reconstruction Failed. Skip'
+		else: print '  Reconstruction Failed  ('+str(round(args.min_accuracy*100,2))+'% min.accuracy) > \033[91mSkip\033[0m'
+		print ''
+		
+	del cel[speciesKey]
+	gc.collect()
 			
 		# else: 
 			# profLook = defineProfile([rec.id for rec in consenSeq])[0]
-			
 			# if profLook[1] == 100: # KP
 				# profil.write(speciesKey+"\tKP\t"+str(profLook[0])+"\t"+"\t".join([recd.id+"::"+str(recd.seq) for recd in consenSeq])+'\r\n')
 			# else:  
