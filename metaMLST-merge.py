@@ -1,4 +1,4 @@
-import sys,os,subprocess,sqlite3,argparse
+import sys,os,subprocess,sqlite3,argparse,difflib,math
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -21,6 +21,7 @@ parser.add_argument("folder", help="folder containing .txt sametagenome files")
 parser.add_argument("-d","--database", help="database", default="bsb.db")
 parser.add_argument("--meta", help="metadata file (CSV)")
 parser.add_argument("--idField", help="field containig the 'sampleID' value", default=0, type=int)
+parser.add_argument("--maxSnps", help="-- max snps", default=0, type=int)
 
 args=parser.parse_args()
  
@@ -57,6 +58,18 @@ def sequenceLocate(bacterium,sequence):
 	e.execute("SELECT alleleVariant FROM alleles WHERE sequence = ? AND bacterium = ?",(str(sequence),bacterium))
 	return str(e.fetchone()['alleleVariant'])
 
+def sequencesGetAll(bacterium,gene):
+	
+	e = conn.cursor()
+	e.execute("SELECT sequence,alleleVariant FROM alleles WHERE gene = ? AND bacterium = ?",(gene,bacterium))
+	return dict((x['alleleVariant'],x['sequence']) for x in e.fetchall())
+
+def stringDiff(s1,s2):
+	c =0 
+	for a,b in zip(s1,s2):
+		if a!=b: c+=1
+	return c
+		
 cel = {}
  
 for file in os.listdir(args.folder):
@@ -68,12 +81,13 @@ for file in os.listdir(args.folder):
 		organism = line.split()[0] 
 		sampleName = line.split()[1] 
 		genes =line.split()[2::] 
+		#if organism != 'neisseria': continue
 		
 		if organism not in cel: cel[organism] = []
-		cel[organism].append((dict((x.split('::')[0],(x.split('::')[1].upper(),x.split('::')[2])) for x in genes),sampleName))
+		cel[organism].append((dict((x.split('::')[0],(x.split('::')[1].upper(),x.split('::')[2],x.split('::')[3])) for x in genes),sampleName))
 
 for bacterium,bactRecord in cel.items():
-	#bactRecord = ( {gene_allele: (sequence,accuracy) , ...} , sampleName ) 
+	#bactRecord = ( {gene_allele: (sequence,accuracy,snps) , ...} , sampleName ) 
 	
 	print '\r\n----------------------------------------------------------------------\r\n'+bacterium  
 	 
@@ -93,8 +107,10 @@ for bacterium,bactRecord in cel.items():
 	
 	cursor.execute("SELECT profileCode FROM profiles WHERE bacterium = ? ORDER BY profileCode DESC LIMIT 1",(bacterium,))
 
-	lastProfile = int(cursor.fetchone()['profileCode'])
-	lastGenes = dict((row['gene'],row['maxGene']) for row in cursor.execute("SELECT gene, MAX(alleleVariant) as maxGene FROM alleles WHERE bacterium = ? GROUP BY gene",(bacterium,)))
+	# lastProfile = int(cursor.fetchone()['profileCode'])
+	lastProfile = 100000
+	# lastGenes = dict((row['gene'],row['maxGene']) for row in cursor.execute("SELECT gene, MAX(alleleVariant) as maxGene FROM alleles WHERE bacterium = ? GROUP BY gene",(bacterium,)))
+	lastGenes = dict((row['gene'],100000) for row in cursor.execute("SELECT gene, MAX(alleleVariant) as maxGene FROM alleles WHERE bacterium = ? GROUP BY gene",(bacterium,)))
 	
 	#print "LAST PROFILE: ",lastProfile,"LAST GENES: ", lastGenes.items()
 	
@@ -118,8 +134,8 @@ for bacterium,bactRecord in cel.items():
 		newAlleles = []
 		sum_of_accuracies = 0.0
 		
-		for geneLabel,(geneSeq,geneAccur) in bacteriumLine.items():
-			
+		for geneLabel,(geneSeq,geneAccur,percent_snps) in bacteriumLine.items():
+			 #TODO: change seq_recog
 			geneOrganism,geneName,geneAllele = geneLabel.split('_')
 			sum_of_accuracies += float(geneAccur)
 			if geneSeq == '' or sequenceExists(bacterium,geneSeq):
@@ -133,15 +149,34 @@ for bacterium,bactRecord in cel.items():
 				profileLine[geneName] = (genesBase[geneSeq].split('_')[2],2)
 				
 			elif geneSeq not in genesBase:
-					## WE HAVE A NEW SEQUENCE
-				geneNewAlleleNumber = str(lastGenes[geneName]+1)
-				lastGenes[geneName]+=1
-				geneNewLabel = geneOrganism+'_'+geneName+'_'+geneNewAlleleNumber
-				genesBase[geneSeq] = geneNewLabel 
-				#print "\t New Sequence for "+geneName+" -> "+geneNewLabel
-				profileLine[geneName] = (geneNewAlleleNumber,1)
-				newAlleles.append(geneName)
-				newSequences.append(SeqRecord(Seq(geneSeq,IUPAC.unambiguous_dna),id=geneNewLabel, description = ''))
+				## WE HAVE A NEW SEQUENCE
+				
+				if int(round(float(percent_snps) / 100.0 * len(geneSeq))) <= args.maxSnps: #only 1 snps
+					allSeqs = sequencesGetAll(bacterium,geneName)
+					minScor = min([stringDiff(candidateSeq,geneSeq) for candidateSeq in allSeqs.values()])
+					closest = [(stringDiff(seq,geneSeq),code) for code,seq in allSeqs.items() if stringDiff(seq,geneSeq) == minScor]
+					del allSeqs
+					
+					if len(closest) == 1 and closest[0][0] <= args.maxSnps:
+						#print "Sequence with at least ",maxSnps,' SNPs. Reassign to',closest[0][1]
+						profileLine[geneName] = (str(closest[0][1]),3)
+					else:
+						geneNewAlleleNumber = str(lastGenes[geneName]+1)
+						lastGenes[geneName]+=1
+						geneNewLabel = geneOrganism+'_'+geneName+'_'+geneNewAlleleNumber
+						genesBase[geneSeq] = geneNewLabel 
+						profileLine[geneName] = (geneNewAlleleNumber,1)
+						newAlleles.append(geneName)
+						newSequences.append(SeqRecord(Seq(geneSeq,IUPAC.unambiguous_dna),id=geneNewLabel, description = ''))
+				else:		
+					geneNewAlleleNumber = str(lastGenes[geneName]+1)
+					lastGenes[geneName]+=1
+					geneNewLabel = geneOrganism+'_'+geneName+'_'+geneNewAlleleNumber
+					genesBase[geneSeq] = geneNewLabel 
+					#print "\t New Sequence for "+geneName+" -> "+geneNewLabel
+					profileLine[geneName] = (geneNewAlleleNumber,1)
+					newAlleles.append(geneName)
+					newSequences.append(SeqRecord(Seq(geneSeq,IUPAC.unambiguous_dna),id=geneNewLabel, description = ''))
  
 		
 		meanAccuracy = sum_of_accuracies / float(len(bacteriumLine))
@@ -204,7 +239,7 @@ for bacterium,bactRecord in cel.items():
 		if isNewProfile == 1: profileNumber = bcolors.OKGREEN+str(profileID)+bcolors.ENDC
 		elif isNewProfile == 2: profileNumber = bcolors.WARNING+str(profileID)+bcolors.ENDC
 		
-		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
+		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.OKGREEN2+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
 			
 		profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
 	profil.close()
