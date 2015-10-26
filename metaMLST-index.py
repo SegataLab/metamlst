@@ -14,14 +14,35 @@ class bcolors:
 	ENDC = '\033[0m'
 	OKGREEN2 = '\033[42m\033[30m'
 
+def dump_db_to_fasta(path,dbPath):
+	try:
+		conn = sqlite3.connect(dbPath)
+	except IOError: 
+		print "IOError: unable to access "+dbPath+"!"
 
+	conn.row_factory = sqlite3.Row
+	cursor = conn.cursor() 
+	
+	print '  COLLECTING DATA'.ljust(60),
+	sys.stdout.flush()
+	
+	strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
+	SeqIO.write(strr,path,'fasta')
+	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
+
+ 
+ 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-d", "--database", help="database file")
 parser.add_argument("-t", "--typings", help="typings in tab separated file (Build New Database)")
 parser.add_argument("-s", "--sequences", help="Sequences (comma separated list of files) (Build New Database)")
 
+parser.add_argument("-q","--dump_db", help="Dumps the database to a fasta file") 
+
 parser.add_argument("-i","--buildindex", help="name of the output bowtie2 index") 
+parser.add_argument("-b","--buildblast", help="name of the output blast index") 
+parser.add_argument("-z","--buldblastfiler", help="filter on the blast index") 
 args=parser.parse_args()
 
 
@@ -45,7 +66,9 @@ if args.database and (args.typings or args.sequences):
 	# Example:
 	# >bacterium_recA_21
 	# ATCTCTTGTGCT...
-	# >recA22
+	# >recA22 
+	
+	
 	if args.sequences:
 		
 		for file in [seq.strip() for seq in args.sequences.split(',')]:
@@ -104,6 +127,7 @@ if args.database and (args.typings or args.sequences):
 			
 			for line in fileOpen:
 				if line.startswith('@'): continue
+				elif line == '': continue
 				elif line.startswith('#'):
 					organism = line.replace('#','').replace('_','').strip()
 					
@@ -167,23 +191,14 @@ if args.database and (args.typings or args.sequences):
 	# child = subprocess.Popen("bowtie2-build out.fa out.index",shell=True, stdout=devnull)
 	# child.wait()
 
+
+if args.dump_db:
+	dump_db_to_fasta(args.dump_db,args.database)
+	
 # Only builds BW2 index from DB (existing!)
 if args.buildindex:
 	
-	try:
-		conn = sqlite3.connect(args.database)
-	except IOError: 
-		print "IOError: unable to access "+args.database+"!"
-
-	conn.row_factory = sqlite3.Row
-	cursor = conn.cursor() 
-	
-	print '  COLLECTING DATA'.ljust(60),
-	sys.stdout.flush()
-	
-	strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
-	SeqIO.write(strr,'out.fa','fasta')
-	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
+	dump_db_to_fasta('out.fa',args.database)
 
 	print '  BUILDING INDEX'.ljust(60),
 	sys.stdout.flush()
@@ -192,6 +207,21 @@ if args.buildindex:
 	child = subprocess.Popen("bowtie2-build out.fa "+args.buildindex,shell=True, stdout=devnull)
 	child.wait()
 	#os.remove('out.fa')
+	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
+	conn.commit()
+	conn.close()  
+
+if args.buildblast:
+	
+	dump_db_to_fasta('out.fa',args.database)
+	
+	print '  BUILDING INDEX'.ljust(60),
+	sys.stdout.flush()
+	
+	devnull = open('/dev/null', 'w')
+	child = subprocess.Popen("makeblastdb -in out.fa -dbtype nucl -out "+args.buildblast,shell=True, stdout=devnull)
+	child.wait()
+	os.remove('out.fa')
 	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
 	conn.commit()
 	conn.close()  
