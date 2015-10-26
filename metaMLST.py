@@ -83,18 +83,18 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 			
 			if scoreOfRead >= filterScore and xM <= max_xM:
 				tline[1] = str(int(tline[1]) & 0b1111011111111)
-				strr+='\t'.join(tline)+'\r\n'
-		
-			# strr+=line
+				strr+='\t'.join(tline)+'\r\n' 
 	
 	
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
 	out = StringIO(child.communicate(strr)[0]) 
 	
+	#print out.getvalue() 
+	
 	for line in out:  
 		chromosome = line.split('\t')[0]
-		nucleotide = int(line.split('\t')[1]) 
+		nucleotide = int(line.split('\t')[1])  
 		
 		if line.split('\t')[4] == '': continue
 		
@@ -128,6 +128,8 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 			
 			
 		#if nucleotide <=100 and nucleotide >= 80: continue
+		# print line.strip(),str(ldict)
+		
 		chromosomes[chromosome][nucleotide] = max(ldict, key=ldict.get)
 	
 	del out
@@ -157,11 +159,11 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 		
 		for chr in rSequen:
 			if chr == 'N':
-				rSequen[i] = dbSequen[i]
+				rSequen[i] = dbSequen[i].lower()
 				cIndex+=1
 				
 			elif rSequen[i] != dbSequen[i]: 
-				rSequen[i] = rSequen[i].lower()
+				rSequen[i] = rSequen[i]
 				SNPs+=1
 			i+=1
 		sequen = ''.join(rSequen)
@@ -174,7 +176,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 parser = argparse.ArgumentParser()
 parser.add_argument("file", help="BAM file containing the sequences")
 #parser.add_argument("-i,--text", help="Information on the sample" action="store_true")
-parser.add_argument("-o","--organism", help="focus on ORGANISM only (mlstkey)")
+parser.add_argument("--filter", help="focus on specific set of organisms only (mlstkey, comma separated)")
 
 parser.add_argument("-p","--penalty", help="penalty for not found allele", default=100, type=int)
 parser.add_argument("--minscore", help="minimum score to match (absolute val!)", default=30, type=int)
@@ -183,7 +185,7 @@ parser.add_argument("--silent", help="Silent Mode", action='store_true')
 parser.add_argument("--out_folder", help="Output Folder")
 
 parser.add_argument("--mincoverage", help="minimum coverage to produce FASTQ assembler files", default=5, type=int)
-parser.add_argument("--min_read_len", help="minimum length for bowtie2 reads", default=90, type=int)
+parser.add_argument("--min_read_len", help="minimum length for bowtie2 reads", default=50, type=int)
 parser.add_argument("--max_xM", help="maximum XM", default=20, type=int)
 parser.add_argument("--min_accuracy", help="minimum percentage of allele-reconstruction for each organism to pass", default=0.33, type=float)
 
@@ -242,7 +244,7 @@ for line in child.stdout:
 		quality = read[10]
 		#quality = [(ord(x)-ord("!")) for x in read[10]] ???
 		 
-		if (args.organism and species == args.organism) or not args.organism:
+		if (args.filter and species in args.filter.split(',')) or not args.filter:
 			if score >= args.minscore and len(sequence) >= args.min_read_len and xM <= args.max_xM:
 				if species not in cel: cel[species] = {} #new species
 			
@@ -327,6 +329,7 @@ for speciesKey,species in cel.items():
 	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
 	
 	#GENE PRESENCE 
+	
 	if len(tVar) < len(species.keys()):
 		print "\033[43m\033[30mDatabase is broken. Exiting\033[0m",len(tVar),len(species.keys())
 		sys.exit(0)
@@ -336,15 +339,17 @@ for speciesKey,species in cel.items():
 	vals = sum([t for t in tVar.values()])
 	#
 	
+	missingGenes = [sk for (sk,v) in tVar.items() if v == 0]
+	
 	# NOT ENOUGH GENES
 	if int((float(vals)/float(len(tVar)))*100) < args.present_genes:
 		print "\033[91m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
-		print "\t\t   Missing: \033[91m"+', '.join([sk for (sk,v) in tVar.items() if v == 0])+'\033[0m'
+		print "\t\t   Missing: \033[91m"+', '.join(missingGenes)+'\033[0m'
 		sys.stdout.flush()
 	# ENOUGH GENES
 	else:
 		print "\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
-		print "\t\t   Missing: \033[91m"+', '.join([sk for (sk,v) in tVar.items() if v == 0])+'\033[0m'
+		if len(missingGenes) > 0: print "\t\t   Missing: \033[91m"+', '.join(missingGenes)+'\033[0m'
 		
 		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+"Hits".rjust(5)+" Allele(s)".ljust(40)
 		sys.stdout.flush()
@@ -447,7 +452,7 @@ for speciesKey,species in cel.items():
 					
 		if finWrite:
 			print '  Reconstruction Successful > Write'
-			profil = open(workUnit+'/'+fileName+'.txt','a')	 
+			profil = open(workUnit+'/'+fileName+'.nfo','a')	 
 			#recd.description.split('_')[0] = "CI::Confidence_Index_value << Ns"
 			#recd.description.split('_')[1] = "SN::SNPs_values << SNPs"
 			profil.write(speciesKey+'\t'+fileName+'\t'+"\t".join([recd.id+"::"+str(recd.seq)+'::'+str(round(1-float(recd.description.split('_')[0].split('::')[1])/float(recd.seqLen),4)*100)+'::'+str(round(float(recd.description.split('_')[1].split('::')[1])/float(recd.seqLen),4)*100) for recd in consenSeq])+'\r\n')
