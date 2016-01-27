@@ -121,7 +121,7 @@ if args.database and (args.typings or args.sequences):
 			profilesQuery=[]
 			profilesLoaded=0
 			fileOpen = open(file,'r')
-			leng = int(len(fileOpen.readlines()))-1
+			leng = int(len(fileOpen.readlines()))
 			fileOpen.seek(0)
 			profilesQuery = []
 			
@@ -155,24 +155,24 @@ if args.database and (args.typings or args.sequences):
 					recIDs = []
 					#print ('    PROFILE : '+data[0]).ljust(60)
 					sys.stdout.flush()
+
+					warningProfile=False #all Ok
+
 					for key,variant in enumerate(data[1::]):
 						
-						# ST	arcc	aroe	mdh
-						# 1		2		4		6
-						# 0 => 2
-						# 1 => 4
-						# 2 => 6
 						if key < len(genes): 
 							
 							if (genes[key]+'_'+str(variant)) in recID_Cache: recIDs.append(recID_Cache[genes[key]+'_'+str(variant)])
 							
 							elif genes[key] in ['clonal_complex','species','mlst_clade']: continue
 							else:
-								print ('  Profile allele not found in DB : '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - FATAL - ]'+bcolors.ENDC
-								sys.exit(1) 
+								print ('  Profile allele not found in DB : '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - WARNING - ]'+bcolors.ENDC
+								#sys.exit(1)  
+								warningProfile=True
 					 
-					profilesQuery = itertools.chain(profilesQuery, [(organism,data[0],alleleRecID) for alleleRecID in recIDs])
-					
+					if not warningProfile: profilesQuery = itertools.chain(profilesQuery, [(organism,data[0],alleleRecID) for alleleRecID in recIDs])
+					else: print ('  Profile Discarded: '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - DONE - ]'+bcolors.ENDC
+
 					print "\r    ANALYZING profile",organism,data[0],'|'+'-'*((profilesLoaded *10) / leng )+' '*(10-(profilesLoaded *10) / leng)+'|',str(round(float(profilesLoaded) / float(leng),4)*100)+'%',
 					profilesLoaded +=1
 					

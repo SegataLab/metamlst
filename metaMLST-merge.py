@@ -382,7 +382,8 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 
 			seqfile.close()
  
-		if args.outseqformat in ['A','A+']:
+		if args.outseqformat in ['A','A+']: #sequences, merged
+
 			for gene,seqs in preaLignTable.items(): #for each gene
 				
 				
@@ -412,12 +413,14 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			#OLD 
 			for profileCode,(hits,profile) in oldProfiles.items(): #for each old profile
 				stSeq = ''
-				if hits>0 or args.outseqformat == 'A+':
-				  
+				 
+
+				if hits>0: #old, detected, present in the samples
+
 					for gen,all in sorted(profile.items()):
 						#print gen,all 
 						stSeq+=str(seqTable[bacterium+'_'+gen+'_'+str(all)])
-	
+					
 					if args.j:  
 						listofkeys = dict((k,[]) for k in args.j.split(','))
 						
@@ -439,6 +442,13 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 					else:
 						for profileInstance in STmapper[profileCode]:
 							phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=profileInstance['sampleID'], description = ''))
+				
+				elif args.outseqformat == 'A+': #old, non present, but required to be added
+					for gen,all in sorted(profile.items()):
+						#print gen,all 
+						stSeq+=str(seqTable[bacterium+'_'+gen+'_'+str(all)])
+					phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id="ST_"+str(profileCode), description = ''))
+
 						
 			#NEW
 			for profileCode,(profile,hits,isNewProfile) in encounteredProfiles.items(): #for each encountered profile
@@ -473,9 +483,5 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 						phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=profileInstance['sampleID'], description = ''))
 			
 			SeqIO.write(phyloSeq,args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")
-		
- 
-		
-	 
-	
+
 print "Completed"
