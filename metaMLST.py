@@ -90,7 +90,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
 	out = StringIO(child.communicate(strr)[0]) 
 	
-	#print out.getvalue() 
+	print out.getvalue() 
 	
 	for line in out:  
 		chromosome = line.split('\t')[0]
@@ -351,7 +351,7 @@ for speciesKey,species in cel.items():
 		print "\033[92m", speciesKey,"\033[0m\t: ", str(vals)+' genes out of '+str(len(tVar))+' MLST targets'
 		if len(missingGenes) > 0: print "\t\t   Missing: \033[91m"+', '.join(missingGenes)+'\033[0m'
 		
-		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+"Hits".rjust(5)+" Allele(s)".ljust(40)
+		print "\r\n  "+"Gene".ljust(7)+"Coverage".rjust(10)+"Score".rjust(6)+"Hits".rjust(5)+" Closest Allele(s)".ljust(40)
 		sys.stdout.flush()
 		# profileTrack = []
 		for geneKey, geneInfo in species.items(): #geni
@@ -364,7 +364,7 @@ for speciesKey,species in cel.items():
 				if avg == minValue:
 					aElements[k]=(val,leng,avg)
 					tmp.append(k)
-			tmp = ",".join(tmp)
+			tmp = ",".join(sorted(tmp))
 			
 			sequenceKey = speciesKey+'_'+geneKey
 			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
@@ -404,7 +404,7 @@ for speciesKey,species in cel.items():
 		
 		print "      Consensous Sequence Build"
 			
-		l = [[(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])][0] for g1,g2 in species.items()] 
+		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])])[0] for g1,g2 in species.items()] 
 		consenSeq = buildConsensus(args.file, dict(l),args.minscore,args.max_xM)
 		
 		#_V2
@@ -414,7 +414,7 @@ for speciesKey,species in cel.items():
 		newProfile = 0
 		finWrite = 1
 		#print "      "+"Gene".ljust(6)+'Ref.'.ljust(7)+"Length".rjust(10)+"Ns".rjust(10)+"SNPs".rjust(10)
-		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(10)+"Accuracy".rjust(9)+"Notes".rjust(10)
+		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(20)+"Breadth of Coverage".rjust(9)+"Notes".rjust(10)
 		for l in consenSeq:
 			holes = str(l.description.split('_')[0].split('::')[1])
 			snps = int(l.description.split('_')[1].split('::')[1])
@@ -436,7 +436,7 @@ for speciesKey,species in cel.items():
 				newAllele = '--'
 				if not args.all_sequences: l.seq = ''
 			
-			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(10)+leng_ns.rjust(9)+newAllele.rjust(10)
+			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(20)+leng_ns.rjust(9)+newAllele.rjust(10)
 			
 		
 		print ''
