@@ -54,8 +54,10 @@ def defineProfile(geneList):
 		e = conn.cursor()
 		e.execute("SELECT recID FROM alleles WHERE bacterium||'_'||gene||'_'||alleleVariant = ?",(allele,))
 		result = e.fetchone()
-		if result: recs.append(str(result['recID']))
-	
+		
+		if result:
+			recs.append(str(result['recID']))
+
 	return [(row['profileCode'],int((float(row['T'])/float(len(recs)))*100)) for row in e.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC")] if result else [(0,0)]
 	
 def sequenceExists(bacterium,sequence):
@@ -143,6 +145,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		#>> {gene_allele: (sequence,accuracy) , ...} 
 		profileLine = {}
 		newAlleles = []
+		flagRecurrent = False
 		sum_of_accuracies = 0.0
 		
 		for geneLabel,(geneSeq,geneAccur,percent_snps) in bacteriumLine.items(): #for each gene of the entry
@@ -158,7 +161,8 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				
 			elif geneSeq in genesBase:
 				profileLine[geneName] = (genesBase[geneSeq].split('_')[2],2)
-				
+				flagRecurrent = True #a new allele is recurring
+ 
 			elif geneSeq not in genesBase:
 				## WE HAVE A NEW SEQUENCE
 				 
@@ -191,21 +195,19 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
  
 		
 		meanAccuracy = sum_of_accuracies / float(len(bacteriumLine))
-		if len(newAlleles) == 0:
-		
+		if len(newAlleles) == 0: 
 		## Existent MLST profile -> Look for it (--> ISOLATES)
 		
 			#Tries to define an existing MLST profile with the alleles
+			if not flagRecurrent:
+				tryDefine = defineProfile([bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
+				#lopo
+				if tryDefine and tryDefine[0][1] == 100: 
 			
-			tryDefine = defineProfile([bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
-			
-			#lopo
-			if tryDefine and tryDefine[0][1] == 100: 
-			
-				#encounteredProfiles[tryDefine[0][0]] = [profileLine,1,0]
-				oldProfiles[tryDefine[0][0]][0]+=1
-				isolates.append((tryDefine[0][0],meanAccuracy,sampleRecord)) 
-				continue
+					#encounteredProfiles[tryDefine[0][0]] = [profileLine,1,0]
+					oldProfiles[tryDefine[0][0]][0]+=1
+					isolates.append((tryDefine[0][0],meanAccuracy,sampleRecord)) 
+					continue
 			
 			
 			foundExistant = 0
