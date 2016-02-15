@@ -90,7 +90,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM):
 	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
 	out = StringIO(child.communicate(strr)[0]) 
 	
-	print out.getvalue() 
+	#print out.getvalue() 
 	
 	for line in out:  
 		chromosome = line.split('\t')[0]
@@ -414,7 +414,7 @@ for speciesKey,species in cel.items():
 		newProfile = 0
 		finWrite = 1
 		#print "      "+"Gene".ljust(6)+'Ref.'.ljust(7)+"Length".rjust(10)+"Ns".rjust(10)+"SNPs".rjust(10)
-		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(20)+"Breadth of Coverage".rjust(9)+"Notes".rjust(10)
+		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(7)+"Breadth of Coverage".rjust(21)+"Notes".rjust(10)
 		for l in consenSeq:
 			holes = str(l.description.split('_')[0].split('::')[1])
 			snps = int(l.description.split('_')[1].split('::')[1])
@@ -436,7 +436,7 @@ for speciesKey,species in cel.items():
 				newAllele = '--'
 				if not args.all_sequences: l.seq = ''
 			
-			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(20)+leng_ns.rjust(9)+newAllele.rjust(10)
+			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(21)+newAllele.rjust(10)
 			
 		
 		print ''
