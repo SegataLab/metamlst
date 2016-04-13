@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+
 from Bio.Align.Applications import MuscleCommandline
 from Bio import SeqIO
 import sqlite3
@@ -5,15 +8,11 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 import argparse
+import metaMLST_functions 
 
-class bcolors:
-	HEADER = '\033[95m'
-	OKBLUE = '\033[94m'
-	OKGREEN = '\033[92m'
-	WARNING = '\033[93m'
-	FAIL = '\033[91m'
-	ENDC = '\033[0m'
-	OKGREEN2 = '\033[42m\033[30m'
+from metaMLST_functions import * 
+
+
 
 
 parser = argparse.ArgumentParser()

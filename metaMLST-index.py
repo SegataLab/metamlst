@@ -1,18 +1,11 @@
+#!/usr/bin/env python
+
 import sys,os,subprocess,sqlite3,argparse,re,itertools
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
-
-
-class bcolors:
-	HEADER = '\033[95m'
-	OKBLUE = '\033[94m'
-	OKGREEN = '\033[92m'
-	WARNING = '\033[93m'
-	FAIL = '\033[91m'
-	ENDC = '\033[0m'
-	OKGREEN2 = '\033[42m\033[30m'
+from metaMLST_functions import * 
 
 def dump_db_to_fasta(path,dbPath):
 	try:
@@ -34,14 +27,14 @@ def dump_db_to_fasta(path,dbPath):
  
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-d", "--database", help="database file")
+parser.add_argument("-d","--database", help="MetaMLST Database File (created with metaMLST-index", required=True)
 parser.add_argument("-t", "--typings", help="typings in tab separated file (Build New Database)")
-parser.add_argument("-s", "--sequences", help="Sequences (comma separated list of files) (Build New Database)")
+parser.add_argument("-s", "--sequences", help="Sequences (comma separated list of files)")
 
-parser.add_argument("-q","--dump_db", help="Dumps the database to a fasta file") 
+parser.add_argument("-q","--dump_db", help="Dumps the database to fasta file") 
 
-parser.add_argument("-i","--buildindex", help="name of the output bowtie2 index") 
-parser.add_argument("-b","--buildblast", help="name of the output blast index") 
+parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
+parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
 parser.add_argument("-z","--buldblastfiler", help="filter on the blast index") 
 args=parser.parse_args()
 
@@ -113,7 +106,7 @@ if args.database and (args.typings or args.sequences):
 			cursor.execute("INSERT OR IGNORE INTO organisms (organismkey) VALUES (?)",(organism,))
 			cursor.executemany("INSERT OR IGNORE INTO genes (geneNAme, bacterium) VALUES (?,?)",geneList)
 			cursor.executemany("INSERT INTO alleles (gene, bacterium,alleleVariant,sequence) VALUES (?,?,?,?)",alleleList)
-			print (bcolors.OKGREEN+'[ - '+str(addCounter)+' PUSHED - ]'+bcolors.ENDC).rjust(15)
+			print (bcolors.OKGREEN+'[ - '+str(addCounter)+' ADDED - ]'+bcolors.ENDC).rjust(15)
 	
 	if args.typings:
 		for file in [seq.strip() for seq in args.typings.split(',')]:
@@ -122,8 +115,7 @@ if args.database and (args.typings or args.sequences):
 			profilesLoaded=0
 			fileOpen = open(file,'r')
 			leng = int(len(fileOpen.readlines()))
-			fileOpen.seek(0)
-			profilesQuery = []
+			fileOpen.seek(0) 
 			
 			for line in fileOpen:
 				if line.startswith('@'): continue
@@ -140,9 +132,8 @@ if args.database and (args.typings or args.sequences):
 					continue
 					
 				data = line.split()
-				
 				recID_Cache = dict((row['gene']+'_'+str(row['alleleVariant']),row['recID']) for row in cursor.execute("SELECT gene,alleleVariant,recID FROM alleles WHERE bacterium = ?",(organism,))) 
-				
+				problematic = False
 				
 				if intest:
 					print ('    READING MLST genes for : '+organism).ljust(60)
@@ -153,11 +144,9 @@ if args.database and (args.typings or args.sequences):
 					sys.stdout.flush()
 				else:
 					recIDs = []
-					#print ('    PROFILE : '+data[0]).ljust(60)
 					sys.stdout.flush()
-
-					warningProfile=False #all Ok
-
+ 
+					
 					for key,variant in enumerate(data[1::]):
 						
 						if key < len(genes): 
@@ -166,17 +155,17 @@ if args.database and (args.typings or args.sequences):
 							
 							elif genes[key] in ['clonal_complex','species','mlst_clade']: continue
 							else:
-								print ('  Profile allele not found in DB : '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - WARNING - ]'+bcolors.ENDC
-								#sys.exit(1)  
-								warningProfile=True
-					 
-					if not warningProfile: profilesQuery = itertools.chain(profilesQuery, [(organism,data[0],alleleRecID) for alleleRecID in recIDs])
-					else: print ('  Profile Discarded: '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - DONE - ]'+bcolors.ENDC
-
+								print ('  Profile allele not found in DB (part of ST-'+bcolors.FAIL+str(data[0])+bcolors.ENDC+'): '+organism+'_'+genes[key]+'_'+variant).ljust(60), bcolors.FAIL+'[ - SKIPPING THIS ST - ]'+bcolors.ENDC
+								problematic = True
+				
 					print "\r    ANALYZING profile",organism,data[0],'|'+'-'*((profilesLoaded *10) / leng )+' '*(10-(profilesLoaded *10) / leng)+'|',str(round(float(profilesLoaded) / float(leng),4)*100)+'%',
 					profilesLoaded +=1
 					
-					
+					if not problematic:
+						for element in recIDs:
+							profilesQuery.append((organism,data[0],element))
+						
+						
 			cursor.executemany("INSERT INTO profiles (bacterium, profileCode, alleleCode) VALUES (?,?,?)", profilesQuery)
 					
 
