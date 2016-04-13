@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+ 
 import sys,os,subprocess,sqlite3,argparse,difflib,math,itertools
 from StringIO import StringIO
 from Bio import SeqIO
@@ -5,38 +7,25 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 from Bio.Align.Applications import MuscleCommandline
-
+from metaMLST_functions import *
  
-class bcolors:
-	HEADER = '\033[1;95m'
-	OKBLUE = '\033[1;94m'
-	OKGREEN = '\033[1;92m'
-	WARNING = '\033[1;93m'
-	RED = '\033[1;91m'
-	CYAN = '\033[0;37m'
-	ENDC = '\033[0m'
-	OKGREEN2 = '\033[42m\033[30m' 
-
-
-	
-
-parser = argparse.ArgumentParser()
-parser.add_argument("folder", help="folder containing .txt sametagenome files")
-parser.add_argument("-d","--database", help="database", default="bsb.db")
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+parser.add_argument("folder", help="folder containing .nfo MetaMLST.py files")
+parser.add_argument("-d","--database", help="MetaMLST Database File (created with metaMLST-index", required=True)
 parser.add_argument("--meta", help="metadata file (CSV)")
 parser.add_argument("--idField", help="field containig the 'sampleID' value", default=0, type=int)
-parser.add_argument("-z","--allele_max_snps", help="edit distance threshold to pass to call a new MLST allele", default=100, type=int)
+parser.add_argument("-z","--allele_max_snps", help="Maximum Edit Distance threshold to call a new MLST allele", default=100, type=int)
  
-parser.add_argument("--outseqformat", choices=['A', 'A+', 'B', 'B+', 'C','C+'], help="A  : Concatenated Fasta (Detected STs)\n \
-		    A+ : Concatenated Fasta (All STs)\n \
-		    B  : Single loci (New loci only)\n \
-		    B+ : Single loci (All loci)\n \
-		    C  : CSV ST Table")
-parser.add_argument('--filter', help="list of subset of organisms to focus on (comma separated)")
-parser.add_argument("-j", help="output sequences with a list of metadata (comma separated)")
-parser.add_argument("--jgroup", help="output sequences, group by ST", action="store_true")
+parser.add_argument("--outseqformat", choices=['A', 'A+', 'B', 'B+', 'C','C+'], help="A  : Concatenated Fasta (Detected STs)\r\n\
+A+ : Concatenated Fasta (All STs)\r\n\
+B  : Single loci (New loci only)\r\n\
+B+ : Single loci (All loci)\r\n\
+C  : CSV ST Table")
+parser.add_argument("--filter", help="focus on specific set of organisms only (METAMLST-KEY, space separated)",  nargs='+')
+parser.add_argument("-j", help="Couple the output sequences with a list of metadata (comma separated list of fields from metadata file specified with --meta)")
+parser.add_argument("--jgroup", help="Group the output sequences by ST and not by sample. Requires -j", action="store_true")
 
-parser.add_argument("--muscle_path", default="tools/muscle")
+parser.add_argument("--muscle_path", default="muscle")
 
 args=parser.parse_args()
 
@@ -47,42 +36,7 @@ except IOError:
 conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
 
-def defineProfile(geneList):
-	
-	recs=[]
-	for allele in geneList:
-		e = conn.cursor()
-		e.execute("SELECT recID FROM alleles WHERE bacterium||'_'||gene||'_'||alleleVariant = ?",(allele,))
-		result = e.fetchone()
-		
-		if result:
-			recs.append(str(result['recID']))
 
-	return [(row['profileCode'],int((float(row['T'])/float(len(recs)))*100)) for row in e.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC")] if result else [(0,0)]
-	
-def sequenceExists(bacterium,sequence):
-	
-	e = conn.cursor()
-	e.execute("SELECT 1 FROM alleles WHERE sequence = ? AND bacterium = ?",(str(sequence),bacterium))
-	return (len(e.fetchall()) > 0)
-
-def sequenceLocate(bacterium,sequence):
-	
-	e = conn.cursor()
-	e.execute("SELECT alleleVariant FROM alleles WHERE sequence = ? AND bacterium = ?",(str(sequence),bacterium))
-	return str(e.fetchone()['alleleVariant'])
-
-def sequencesGetAll(bacterium,gene):
-	
-	e = conn.cursor()
-	e.execute("SELECT sequence,alleleVariant FROM alleles WHERE gene = ? AND bacterium = ?",(gene,bacterium))
-	return dict((x['alleleVariant'],x['sequence']) for x in e.fetchall())
-
-def stringDiff(s1,s2):
-	c =0 
-	for a,b in zip(s1,s2):
-		if a!=b: c+=1
-	return c
 		
 cel = {}
 
@@ -100,7 +54,7 @@ for file in os.listdir(args.folder):
 		genes =line.split()[2::] 
 		
 		#apply the species filter
-		if args.filter and organism not in args.filter.split(','): continue
+		if args.filter and organism not in args.filter: continue
 		
 		if organism not in cel: cel[organism] = []
 		cel[organism].append((dict((x.split('::')[0],(x.split('::')[1].upper(),x.split('::')[2],x.split('::')[3])) for x in genes),sampleName))
@@ -152,7 +106,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			 #TODO: change seq_recog
 			geneOrganism,geneName,geneAllele = geneLabel.split('_')
 			sum_of_accuracies += float(geneAccur)
-			if geneSeq == '' or sequenceExists(bacterium,geneSeq):
+			if geneSeq == '' or sequenceExists(conn,bacterium,geneSeq):
 				# WE HAVE A DATABASE SEQUENCE
 				#print "WE HAVE A DATABASE SEQUENCE"
 				#geneSeq = cursor.execute("SELECT sequence")
@@ -172,7 +126,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				if args.allele_max_snps != None: 
 					geneCategoryCode = 3 #default becomes now not accepted
 					
-					for refCode,refSeq in sequencesGetAll(bacterium,geneName).items():
+					for refCode,refSeq in sequencesGetAll(conn,bacterium,geneName).items():
 						if stringDiff(geneSeq,refSeq) <= args.allele_max_snps:
 						    #print geneName,refCode,stringDiff(geneSeq,refSeq)
 						    geneCategoryCode = 1 # if match allele_max_snps: accept
