@@ -110,7 +110,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				# WE HAVE A DATABASE SEQUENCE
 				#print "WE HAVE A DATABASE SEQUENCE"
 				#geneSeq = cursor.execute("SELECT sequence")
-				if geneSeq != '': geneAllele = sequenceLocate(bacterium,geneSeq)
+				if geneSeq != '': geneAllele = sequenceLocate(conn,bacterium,geneSeq)
 				profileLine[geneName] = (geneAllele,0)
 				
 			elif geneSeq in genesBase:
@@ -154,7 +154,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		
 			#Tries to define an existing MLST profile with the alleles
 			if not flagRecurrent:
-				tryDefine = defineProfile([bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
+				tryDefine = defineProfile(conn,[bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
 				#lopo
 				if tryDefine and tryDefine[0][1] == 100: 
 			
