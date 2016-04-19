@@ -214,7 +214,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	for profileCode,(hits,profile) in oldProfiles.items():
 		profil.write(str(profileCode)+'\t'+'\t'.join([str(v) for k,v in sorted(profile.items())])+'\r\n')
 		if hits > 0: 
-			print bcolors.RED+str(profileCode)+bcolors.ENDC + '\t' + '\t'.join([str(v) for k,v in sorted(profile.items())])+'\t'+str(hits)
+			print bcolors.FAIL+str(profileCode)+bcolors.ENDC + '\t' + '\t'.join([str(v) for k,v in sorted(profile.items())])+'\t'+str(hits)
 			sys.stdout.flush()
 			
 	#NEW PROFILES (ACCEPTED)
@@ -227,7 +227,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		if profileCategoryCode == 1: profileNumber = bcolors.OKGREEN+str(profileID)+bcolors.ENDC
 		elif profileCategoryCode == 2: profileNumber = bcolors.WARNING+str(profileID)+bcolors.ENDC
 		
-		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.RED+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
+		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
 		sys.stdout.flush()
 			
 		profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
@@ -240,7 +240,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		if profileCategoryCode not in [3]: continue
 	        profileNumber = bcolors.CYAN+str(profileID)+bcolors.ENDC
 	        
-		print str(profileID) + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.RED+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
+		print str(profileID) + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
 		sys.stdout.flush()
 			
 		#profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
