@@ -42,6 +42,10 @@ cel = {}
 
 if not os.path.isdir(args.folder+'/merged'): os.makedirs(args.folder+'/merged')
 
+#print defineProfile(conn,['ecoli_adk_10','ecoli_fumC_11','ecoli_gyrB_4','ecoli_icd_8','ecoli_mdh_8','ecoli_purA_8','ecoli_recA_2'])
+#print defineProfile(conn,['ecoli_adk_21','ecoli_fumC_35','ecoli_gyrB_27','ecoli_icd_6','ecoli_mdh_5','ecoli_purA_5','ecoli_recA_4'])
+
+#sys.exit(0)
  
 for file in os.listdir(args.folder):
 	
