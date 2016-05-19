@@ -37,14 +37,16 @@ parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
 args=parser.parse_args()
 
+try:
+	conn = sqlite3.connect(args.database)
+except IOError: 
+	print "IOError: unable to access "+args.database+"!"
+	sys.exit(0)
+
 
 # Creates (or updates) database with -d -t -s options
 
-if args.database and (args.typings or args.sequences):
-	try:
-		conn = sqlite3.connect(args.database)
-	except IOError: 
-		print "IOError: unable to access "+args.database+"!"
+if args.typings or args.sequences:
 
 	conn.row_factory = sqlite3.Row
 	cursor = conn.cursor() 
@@ -79,7 +81,7 @@ if args.database and (args.typings or args.sequences):
 					sequence = seq_record.seq
 					
 					#IF line formatted in the correct way
-					if re.match('^([a-zA-Z])*$',organism) and re.match('^([a-zA-Z0-9])*$',gene) and re.match('^([0-9])*$',allele):
+					if re.match('^([a-zA-Z-])*$',organism) and re.match('^([a-zA-Z0-9|])*$',gene) and re.match('^([0-9])*$',allele):
 						
 						#if gene-allele couple is NOT present in database
 						if len([row for row in cursor.execute("SELECT 1 FROM alleles WHERE bacterium = ? AND gene = ? and alleleVariant = ?",(organism,gene,allele))]) == 0:
@@ -102,7 +104,6 @@ if args.database and (args.typings or args.sequences):
 			#todo aligned sequence
 			#cursor.execute("SELECT 1 FROM genes WHERE bacterium = "); 
 			
-			cursor.execute("INSERT OR IGNORE INTO organisms (organismkey) VALUES (?)",(organism,))
 			cursor.executemany("INSERT OR IGNORE INTO genes (geneNAme, bacterium) VALUES (?,?)",geneList)
 			cursor.executemany("INSERT INTO alleles (gene, bacterium,alleleVariant,sequence) VALUES (?,?,?,?)",alleleList)
 			print (' ADDING SEQUENCES '+file).ljust(25), ('Added '+str(addCounter)+' seqs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(27) 
@@ -121,9 +122,15 @@ if args.database and (args.typings or args.sequences):
 				if line.startswith('@'): continue
 				elif line == '': continue
 				elif line.startswith('#'):
-					organism = line.replace('#','').replace('_','').strip()
+					if len(line.strip().split('|')) == 2:
+						organism = line.strip().split('|')[0].replace('#','').replace('_','')
+						organismextended = line.strip().split('|')[1]
+					else: 
+						organism = line.strip().split('|')[0].replace('#','').replace('_','')
+						organismextended = line.strip().split('|')[0].replace('#','').replace('_','')
 					
-					print (' DELETE old typings for '+organism).ljust(50),
+					cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismextended))
+					print (' DELETE old typings for '+organismextended).ljust(50),
 					sys.stdout.flush()
 					cursor.execute("DELETE FROM profiles WHERE bacterium = ?",(organism,))
 					print  (bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(30)
@@ -135,7 +142,7 @@ if args.database and (args.typings or args.sequences):
 				recID_Cache = dict((row['gene']+'_'+str(row['alleleVariant']),row['recID']) for row in cursor.execute("SELECT gene,alleleVariant,recID FROM alleles WHERE bacterium = ?",(organism,))) 
 				problematic = False
 				if intest:
-					print (' READING MLST loci for '+organism).ljust(50)
+					print (' READING MLST loci for '+organismextended).ljust(50)
 					sys.stdout.flush()
 					intest = 0
 					genes = data[1::]

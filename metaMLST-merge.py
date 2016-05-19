@@ -242,7 +242,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	for profileID,(profile,hits,profileCategoryCode) in encounteredProfiles.items():
 		
 		if profileCategoryCode not in [3]: continue
-	        profileNumber = bcolors.CYAN+str(profileID)+bcolors.ENDC
+	        profileNumber = bcolors.OKBLUE+str(profileID)+bcolors.ENDC
 	        
 		print str(profileID) + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
 		sys.stdout.flush()
