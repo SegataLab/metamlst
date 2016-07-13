@@ -1,72 +1,70 @@
 #!/usr/bin/env python
 
-import sys,os,subprocess,sqlite3,argparse,re,itertools
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
+try:
+	import sys,os,subprocess,sqlite3,argparse,re
+except ImportError as e:
+	print "Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re"
+	sys.exit(1)
+
+try:
+	from Bio import SeqIO
+	from Bio.Seq import Seq
+	from Bio.SeqRecord import SeqRecord
+	from Bio.Alphabet import IUPAC
+except ImportError as e:
+	print "Error while importing Biopython. Please check Biopython is installed properly on your system!"
+	sys.exit(1)
+	
 from metaMLST_functions import * 
 
-def dump_db_to_fasta(path,dbPath):
-	try:
-		conn = sqlite3.connect(dbPath)
-	except IOError: 
-		print "IOError: unable to access "+dbPath+"!"
-
-	conn.row_factory = sqlite3.Row
-	cursor = conn.cursor() 
-	
-	print '  COLLECTING DATA'.ljust(60),
-	sys.stdout.flush()
-	
-	strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
-	SeqIO.write(strr,path,'fasta')
-	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
 
  
- 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+		description='Builds and manages the MetaMLST SQLite Databases')
 
-parser.add_argument("-d","--database", help="MetaMLST Database File (created with metaMLST-index", required=True)
-parser.add_argument("-t", "--typings", help="typings in tab separated file (Build New Database)")
-parser.add_argument("-s", "--sequences", help="Sequences (comma separated list of files)")
-
+parser.add_argument("-d","--database", help="MetaMLST Database File (will create a new DB or update an existing one)", required=True)
+parser.add_argument("-t", "--typings", help="Typings in TAB separated file (Build New Database)")
+parser.add_argument("-s", "--sequences", help="Sequences in FASTA format (comma separated list of files)")
 parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta file") 
 
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
+parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
+
 args=parser.parse_args()
 
 try:
 	conn = sqlite3.connect(args.database)
+	conn.row_factory = sqlite3.Row
+	cursor = conn.cursor() 
 except IOError: 
-	print "IOError: unable to access "+args.database+"!"
+	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
+	sys.exit(1)
+
+
+
+
+if args.listkeys:
+	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
+	print '-'*65
+	for elem in cursor.execute("SELECT * FROM organisms"):
+		
+		print (elem['label'].ljust(30)+(' '*5) if elem['label'] is not None else '--'.ljust(30) )+(' ')*5+elem['organismkey'].ljust(30)
 	sys.exit(0)
 
 
-# Creates (or updates) database with -d -t -s options
-
 if args.typings or args.sequences:
 
-	conn.row_factory = sqlite3.Row
-	cursor = conn.cursor() 
-	
 	cursor.execute("CREATE TABLE IF NOT EXISTS organisms (organismkey varchar(255), label VARCHAR(255), PRIMARY KEY(organismkey))")
 	cursor.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
 	cursor.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
 	cursor.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
 	
-	# Alleles
-	# Example:
-	# >bacterium_recA_21
-	# ATCTCTTGTGCT...
-	# >recA22 
-	
-	
 	if args.sequences:
 		
 		for file in [seq.strip() for seq in args.sequences.split(',')]:
-			print (' ADDING SEQUENCES '+file+'...')
+			#print (' ADDING SEQUENCES '+file+'...')
+			metamlst_print('ADDING SEQUENCES','...',bcolors.HEADER)
 			alleleList = []
 			geneList = []
 			addCounter=0
@@ -92,21 +90,18 @@ if args.typings or args.sequences:
 							addCounter += 1
 							
 						else:
-							print ('   Allele already present in DB: '+seq_record.id).ljust(50),(bcolors.FAIL+'[ - Skip - ]'+bcolors.ENDC).rjust(30) 
+							metamlst_print(' > Allele already present in DB: '+seq_record.id,'SKIP',bcolors.FAIL)
 							continue
 					else: 
-						print ('   Invalid Sequence ID: '+seq_record.id).ljust(50),(bcolors.FAIL+'[ - Skip - ]'+bcolors.ENDC).rjust(30) 
+						metamlst_print(' > Invalid Sequence ID: '+seq_record.id,'SKIP',bcolors.FAIL)
 						continue
 				else:
-					print ('   Invalid Sequence ID: '+seq_record.id).ljust(50),(bcolors.FAIL+'[ - Skip - ]'+bcolors.ENDC).rjust(30) 
+					metamlst_print(' > Malformed Sequence ID: '+seq_record.id,'SKIP',bcolors.FAIL)
 					continue
 					
-			#todo aligned sequence
-			#cursor.execute("SELECT 1 FROM genes WHERE bacterium = "); 
-			
 			cursor.executemany("INSERT OR IGNORE INTO genes (geneNAme, bacterium) VALUES (?,?)",geneList)
 			cursor.executemany("INSERT INTO alleles (gene, bacterium,alleleVariant,sequence) VALUES (?,?,?,?)",alleleList)
-			print (' ADDING SEQUENCES '+file).ljust(25), ('Added '+str(addCounter)+' seqs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(27) 
+			metamlst_print('ADDING SEQUENCES '+file+' Added '+str(addCounter)+' seqs','DONE',bcolors.OKGREEN)
 	
 	if args.typings:
 		for file in [seq.strip() for seq in args.typings.split(',')]:
@@ -122,31 +117,27 @@ if args.typings or args.sequences:
 				if line.startswith('@'): continue
 				elif line == '': continue
 				elif line.startswith('#'):
-					if len(line.strip().split('|')) == 2:
-						organism = line.strip().split('|')[0].replace('#','').replace('_','')
-						organismextended = line.strip().split('|')[1]
-					else: 
-						organism = line.strip().split('|')[0].replace('#','').replace('_','')
-						organismextended = line.strip().split('|')[0].replace('#','').replace('_','')
+					organism = line.strip().split('|')[0].replace('#','').replace('_','')
+					organismLabel = line.strip().split('|')[1] if len(line.strip().split('|')) == 2 else organism
 					
-					cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismextended))
-					print (' DELETE old typings for '+organismextended).ljust(50),
-					sys.stdout.flush()
+					cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))
 					cursor.execute("DELETE FROM profiles WHERE bacterium = ?",(organism,))
-					print  (bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(30)
-					sys.stdout.flush()
-					
+					metamlst_print('DELETED all profiles for '+organismLabel,'DONE',bcolors.OKGREEN)
+					 
 					continue
 					     
 				data = line.split()
 				recID_Cache = dict((row['gene']+'_'+str(row['alleleVariant']),row['recID']) for row in cursor.execute("SELECT gene,alleleVariant,recID FROM alleles WHERE bacterium = ?",(organism,))) 
 				problematic = False
 				if intest:
-					print (' READING MLST loci for '+organismextended).ljust(50)
+					#print (' READING MLST loci for '+organismLabel).ljust(50)
+					metamlst_print('READING MLST loci for '+organismLabel,'....',bcolors.OKGREEN)
 					sys.stdout.flush()
 					intest = 0
 					genes = data[1::]
-					print ('   '+', '.join([g for g in genes if g not in ['clonal_complex','species','mlst_clade']])).ljust(51)+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(30) ### 
+					#print ('   '+', '.join([g for g in genes if g not in MLST_KEYWORDS])).ljust(51)+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(30) ### 
+					metamlst_print(' > '+', '.join([g for g in genes if g not in MLST_KEYWORDS]),'DONE',bcolors.OKGREEN)
+					
 					sys.stdout.flush()
 				else:
 					recIDs = []
@@ -165,14 +156,19 @@ if args.typings or args.sequences:
 								problematicList[str(data[0])].append(organism+'_'+genes[key]+'_'+variant)
 								problematic = True
 				
-					print "\r"+(" CHECKING PROFILES").ljust(24)+(' '+organism+' ST-'+data[0]).ljust(17) + ('[ - '+(str(int(float(profilesLoaded) / float(leng)*100))+'%').rjust(3)+' - ]').rjust(30),
-					
+					#print "\r"+(" CHECKING PROFILES").ljust(24)+(' '+organism+' ST-'+data[0]).ljust(17) + ('[ - '+(str(int(float(profilesLoaded) / float(leng)*100))+'%').rjust(3)+' - ]').rjust(30),
+					percentCompleted = float(profilesLoaded) / float(leng)*100.0
+
+					metamlst_print('CHECKING PROFILE ['+organism+ ' ' + data[0] + ']',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True)
+
+
 					if not problematic:
 						profilesLoaded +=1
 						for element in recIDs:
 							profilesQuery.append((organism,data[0],element))
 							
-						
+			metamlst_print(str(profilesLoaded)+'/'+str(leng)+' PROFILES LOADED',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True,newLine=True)
+			
 			cursor.executemany("INSERT INTO profiles (bacterium, profileCode, alleleCode) VALUES (?,?,?)", profilesQuery)
 			
 			if len(problematicList) > 0:
@@ -182,48 +178,37 @@ if args.typings or args.sequences:
 						logf.write('ST-'+key+'\t'.join(element))
 					logf.write(('-'*120)+'r\n')
 				
-			print '\r'+(' COMPLETED '+organism).ljust(26),('Added '+str(profilesLoaded)+' STs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(28) 
-			
-	conn.commit()
-	conn.close() 
-	# strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE 1")]	
-	# SeqIO.write(strr,'out.fa','fasta')
-
-	# devnull = open('/dev/null', 'w')
-	# child = subprocess.Popen("bowtie2-build out.fa out.index",shell=True, stdout=devnull)
-	# child.wait()
-
+			#print '\r'+(' COMPLETED '+organism).ljust(26),('Added '+str(profilesLoaded)+' STs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(28) 
+			metamlst_print('COMPLETED '+organism,'DONE',bcolors.OKGREEN)
 
 if args.dump_db:
-	dump_db_to_fasta(args.dump_db,args.database)
+	dump_db_to_fasta(conn,args.dump_db)
 	
-# Only builds BW2 index from DB (existing!)
 if args.buildindex:
-	
-	dump_db_to_fasta('out.fa',args.database)
+	dump_db_to_fasta(conn,'out.fa')
 
-	print '  BUILDING INDEX'.ljust(60),
+	#print '  BUILDING INDEX'.ljust(60),
+	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
+
 	sys.stdout.flush()
 	
-	devnull = open('/dev/null', 'w')
-	child = subprocess.Popen("bowtie2-build out.fa "+args.buildindex,shell=True, stdout=devnull)
+	with open('/dev/null','w') as devnull:	
+		child = subprocess.Popen("bowtie2-build out.fa "+args.buildindex,shell=True, stdout=devnull)
 	child.wait()
-	#os.remove('out.fa')
-	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
-	conn.commit()
-	conn.close()  
-
+	os.remove('out.fa')
+	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
 if args.buildblast:
 	
 	dump_db_to_fasta('out.fa',args.database)
 	
-	print '  BUILDING INDEX'.ljust(60),
+	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 	sys.stdout.flush()
 	
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("makeblastdb -in out.fa -dbtype nucl -out "+args.buildblast,shell=True, stdout=devnull)
 	child.wait()
 	os.remove('out.fa')
-	print bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC
-	conn.commit()
-	conn.close()  
+	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True)
+
+conn.commit()
+conn.close()  
