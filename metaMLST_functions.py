@@ -5,6 +5,47 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 
+def metamlst_print(mesg,label,type,reline=False,newLine=False):
+	opening = "\r" if reline else ''
+	ending = "\r\n" if not reline or newLine else ''
+
+	if len(mesg) < 65:
+	
+		sys.stdout.write(opening+mesg.ljust(66)+(type+'[ - '+label.center(5)+' - ]'+bcolors.ENDC).ljust(14)+ending)
+	else: 
+		c=0
+		wds = []
+		lines=[]
+		for word in mesg.split(' '):
+
+				if c + len(word)+2 > 65:
+					print ' '.join(wds)
+					c=0
+					wds=[word]
+					continue
+				c = c+len(word)+2
+				wds.append(word)
+		sys.stdout.write(opening+(' '.join(wds)).ljust(66)+(type+'[ - '+label.center(5)+' - ]'+bcolors.ENDC).ljust(14)+ending)
+
+
+
+	sys.stdout.flush()
+
+def metamlst_newline():
+	sys.stdout.write('\r\n')
+
+def dump_db_to_fasta(conn,path):
+	conn.row_factory = sqlite3.Row
+	cursor = conn.cursor() 
+	
+	#print '  COLLECTING DATA'.ljust(60),
+	metamlst_print("COLLECTING DATA...",'...',bcolors.ENDC)
+	sys.stdout.flush()
+	
+	strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
+	SeqIO.write(strr,path,'fasta')
+	return len(strr)
+
 def alleleInProfile(conn,bacterium,gene,allele,profile):
 	e = conn.cursor()
 	e.execute("SELECT 1 FROM profiles,alleles WHERE alleleCode = alleles.recID AND profileCode = ? AND alleleVariant = ? AND gene = ? AND profiles.bacterium = ?",(profile,allele,gene,bacterium))
@@ -30,8 +71,13 @@ def db_getSequence(conn,bacterium,gene,allele):
 
 def db_getUnalSequence(conn,bacterium,gene,allele):
 	e = conn.cursor()
-	e.execute("SELECT sequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
-	return (e.fetchone()['sequence'])
+	unal = e.execute("SELECT sequence FROM alleles WHERE bacterium = ? AND gene = ? AND alleleVariant = ?",(bacterium,gene,allele))
+	unalobj = unal.fetchone()
+	if unalobj is not None:
+		return unalobj['sequence']
+	else:
+		metamlst_print(' > '+bacterium+'_'+gene+'_'+allele+" was not found in the database!",'!!!',bcolors.WARNING)
+		return None
 
 def sequenceFind(conn,bacterium,sequence):
 	
@@ -72,10 +118,10 @@ def stringDiff(s1,s2):
 	c =0 
 	for a,b in zip(s1,s2):
 		if a!=b: c+=1
-	return c
+	return c 
 
 
-def buildConsensus(samFile,chromosomeList,filterScore,max_xM,debugMode):
+def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode):
 
 	
 	chromosomes = {}
@@ -84,10 +130,9 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM,debugMode):
 	strr=''
 	filterSpec = chromosomeList.keys()[0].split('_')[0].strip()
 	
-	fili = open(samFile,'r')
+	fili = open(bamFile,'r') if os.path.isfile(bamFile) else sys.stdin
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("samtools view -h - | grep "+filterSpec,shell=True, stdout=subprocess.PIPE, stdin = fili)
-	# samFileContentAK = StringIO(child.communicate()[0]) 
 	
 	for line in child.stdout:
 	
@@ -153,13 +198,9 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM,debugMode):
 				continue
 			
 			elif chr.upper() in ldict: 
-				#print "DO::",chromosome,nucleotide,chr
 				ldict[chr.upper()] += 1
 			
 			
-		#if nucleotide <=100 and nucleotide >= 80: continue
-		# print line.strip(),str(ldict)
-		
 		chromosomes[chromosome][nucleotide] = max(ldict, key=ldict.get)
 	
 	del out
@@ -170,7 +211,7 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM,debugMode):
 		
 		sequen = ""
 		lastSet = 0
-		#print ">"+chromo, chromosomesLen[chromo]
+
 		for key,nucleotide in sorted(nucleots.items(), key=lambda x : x[0]):
 			if lastSet+1 != key:
 				sequen = sequen + "N" * (key-(lastSet+1))
@@ -202,6 +243,8 @@ def buildConsensus(samFile,chromosomeList,filterScore,max_xM,debugMode):
 		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 	print '\r',
 	return seqRec
+
+MLST_KEYWORDS = ['clonal_complex','species','mlst_clade']
 	
 class bcolors:
 	HEADER = '\033[95m'

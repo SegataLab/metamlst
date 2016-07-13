@@ -1,158 +1,161 @@
 #!/usr/bin/env python
 
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
-import json, math,sqlite3,itertools,subprocess,time,gc,argparse, re, os,sys
-from metaMLST_functions import *
+try:
+	import argparse
+	import math
+	import sqlite3
+	import subprocess
+	import time
+	import gc
+	import os
+	import sys
+	from metaMLST_functions import *
+except ImportError as e:
+	print "Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re"
+	sys.exit(1)
 
+try:
+	from Bio import SeqIO
+	from Bio.Seq import Seq
+	from Bio.SeqRecord import SeqRecord
+	from Bio.Alphabet import IUPAC
+except ImportError as e:
+	metamlst_print("Failed in importing Biopython. Please check Biopython is installed properly on your system!",'FAIL',bcolors.FAIL)
+	sys.exit(1)
+ 
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+		description='Reconstruct the MLST loci from a BAMFILE aligned to the reference MLST loci')
 
+parser.add_argument("BAMFILE", help="BowTie2 BAM file containing the alignments")
+parser.add_argument("-o", metavar="OUTPUT FOLDER", help="Output Folder (default: ./out)", default='./out')
+parser.add_argument("-d", metavar="DB PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", required=True)
 
-parser = argparse.ArgumentParser()
-parser.add_argument("file", help="BAM file containing the sequences")
-parser.add_argument("--filter", help="focus on specific set of organisms only (METAMLST-KEY, space separated)",  nargs='+')
+parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 
-parser.add_argument("-p","--penalty", help="penalty for not found allele", default=100, type=int)
-parser.add_argument("--minscore", help="Minimum BowTie2 score (absolute val!)", default=80, type=int)
-
-#parser.add_argument("--silent", help="Silent Mode", action='store_true')
+parser.add_argument("--penalty", metavar="PENALTY", help="MetaMLST penaty for under-represented alleles", default=100, type=int)
+parser.add_argument("--minscore", metavar="MINSCORE", help="Minimum alignment score for each alignment to be considered valid", default=80, type=int)
+parser.add_argument("--max_xM", metavar="XM", help="Maximum SNPs rate for each alignment to be considered valid (BowTie2s XM value)", default=5, type=int)
+parser.add_argument("--min_read_len", metavar="LENGTH", help="Minimum BowTie2 alignment length", default=50, type=int)
+parser.add_argument("--min_accuracy", metavar="CONFIDENCE", help="Minimum threshold on Confidence score (percentage) to pass the reconstruction step", default=0.90, type=float)
 parser.add_argument("--debug", help="Debug Mode", action='store_true', default=False) 
-parser.add_argument("--out_folder", help="Output Folder", default='./out')
 
-parser.add_argument("--mincoverage", help="minimum coverage to produce FASTQ assembler files", default=5, type=int)
-parser.add_argument("--min_read_len", help="minimum length for bowtie2 reads", default=50, type=int)
-parser.add_argument("--max_xM", help="maximum XM", default=5, type=int)
-parser.add_argument("--min_accuracy", help="minimum percentage of allele-reconstruction for each organism to pass", default=0.90, type=float)
-
-parser.add_argument("--present_loci", help="Percentage of MLST loci to type an organism, default: 100", default=100, type=int)
+parser.add_argument("-nloci", metavar="NLOCI", help="Do not discard samples where at least NLOCI (percent) are detected. This can lead to imperfect MLST typing", default=100, type=int)
 parser.add_argument("--log", help="generate logfiles", action="store_true") 
-parser.add_argument("-d","--database", help="MetaMLST Database File (created with metaMLST-index", required=True)
-parser.add_argument("-a","--all_sequences", help="output also known sequences", action="store_true")
+parser.add_argument("-a", help="Write known sequences", action="store_true")
+
+#parser.print_help()
 
 args=parser.parse_args()
 
-#PREPARE
-MetaMLSTDBconn = sqlite3.connect(args.database)
-MetaMLSTDBconn.row_factory = sqlite3.Row
-c = MetaMLSTDBconn.cursor()
+#PREPARE 
+try:
+	MetaMLSTDBconn = sqlite3.connect(args.d)
+	MetaMLSTDBconn.row_factory = sqlite3.Row
+	c = MetaMLSTDBconn.cursor()
+except IOError: 
+	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
+	sys.exit(1)
 
-fil = open(args.file,'r')
+
+
+
+try:
+	fil = open(args.BAMFILE,'r')
+except IOError as e: 
+	metamlst_print('Unable to open the BAM file for reading: please check the path is correct','FAIL',bcolors.FAIL)
+	sys.exit(1)
+
 cel = {}
-geneMaxiMin = {}
 sequenceBank = {}
 ignoredReads = 0
+totalReads = 0
+
+fileName = (args.BAMFILE.split('/'))[-1].split('.')[0] if args.BAMFILE != '' else 'STDIN_'+str(int(time.time()))
+
+if not os.path.isdir(args.o): os.mkdir(args.o)
+workUnit = args.o	
  
 
-fileName = (args.file.split('/'))[-1].split('.')[0]
-
-if not os.path.isdir(args.out_folder): os.mkdir(args.out_folder)
-workUnit = args.out_folder	
+try:
+	child = subprocess.Popen(["samtools","view","-h","-"], stdout=subprocess.PIPE, stdin = fil)
+except OSError as e:
+	print "Error while executing samtools. Please check samtools is installed properly on your system!",e
+	sys.exit(1)
  
-child = subprocess.Popen("samtools view -h - ",shell=True, stdout=subprocess.PIPE, stdin = fil)
- 
-#samFileContent = fil.readlines()
-
 for line in child.stdout:
 	if(line[0] != '@'): 
 		read = line.split('\t')
 		readCode = read[0]
-		# species = re.findall('[a-zA-Z]*_',read[2])[0].replace('_','')
-		# gene = re.findall('_[a-zA-Z_]*',read[2])[0].replace('_','')
-		# allele = re.findall('[0-9]*$',read[2])[0]
-		
-		# (Added)
+
 		species,gene,allele = read[2].split('_')
-		# (Removed)
-		# species = read[2].split('_')[0]
-		# gene = read[2].split('_')[1]
-		# allele = read[2].split('_')[2]
 		
 		score = (int)((read[11]).split(':')[2])
 		xM = (int)((read[14]).split(':')[2])
 		sequence = read[9]
 		quality = read[10]
-		#quality = [(ord(x)-ord("!")) for x in read[10]] ???
-		 
-		if (args.filter and species in args.filter) or not args.filter:
+		
+		if (args.filter and species in args.filter.split(',')) or not args.filter:
 			if score >= args.minscore and len(sequence) >= args.min_read_len and xM <= args.max_xM:
 				if species not in cel: cel[species] = {} #new species
 			
 				if gene not in cel[species]: #found a new gene
-					cel[species][gene] = {}
-					if args.log: geneMaxiMin[species+gene] = [0,float("inf")]
-					#Removed: (De-comment to have sequences and quality for FASTQ generation)
+					cel[species][gene] = {} 
 					sequenceBank[species+'_'+gene] = {}
-					# sequenceBank[species+'_'+gene] = []
 					
 				if allele not in cel[species][gene]: #found a new allele
 					cel[species][gene][allele] = []
 				
 				cel[species][gene][allele].append(score)
-				#sequenceBank[species+'_'+gene].append(SeqRecord(Seq(sequence, IUPAC.unambiguous_dna), id = readCode, description = ''))
-				#sequenceBank[species+'_'+gene].append((readCode,sequence,quality))
-				
-				# Removed: (De-comment to have seuqences and quality for FASTQ generation)
-					# sequenceBank[species+'_'+gene][readCode]=(sequence,quality)
+
 				sequenceBank[species+'_'+gene][readCode]=len(sequence)
-				# sequenceBank[species+'_'+gene][readCode] 
-				
-				#print readCode
+
 			else: ignoredReads = ignoredReads+1
+			totalReads = totalReads +1
 
 #COMPILES THE DATA STRUCTURE 			
 for speciesKey,species in cel.items():
-	for geneKey, geneInfo in species.items(): #geni
+
+	for geneKey, geneInfo in species.items(): #geni 
 	
 		maxLen = max([len(x) for x in geneInfo.values()])
 
-		for geneInfoKey,geneValues in geneInfo.items(): #alleli passata 2
-			geneLen = len(geneValues)
+		for alleleCode,bowtieValues in geneInfo.items(): #alleli passata 2
+			geneLen = len(bowtieValues)
 			
-			localScore = sum(item for item in geneValues)
+			localScore = sum(item for item in bowtieValues)
 			
-			
+			#print "GENELEN",geneKey,alleleCode,'a=',geneLen,'b=',maxLen, 'c=',localScore
 			
 			if geneLen != maxLen:
 				localScore = localScore - (maxLen-geneLen)*args.penalty
+
 			averageScore = float(localScore)/float(geneLen)
-			cel[speciesKey][geneKey][geneInfoKey] = (localScore,maxLen,round(averageScore,1)) 
-		
-			if args.log:
-				if cel[speciesKey][geneKey][geneInfoKey][0] > geneMaxiMin[speciesKey+geneKey][0]:
-					geneMaxiMin[speciesKey+geneKey][0] = cel[speciesKey][geneKey][geneInfoKey][0]
-					
-				if cel[speciesKey][geneKey][geneInfoKey][0] < geneMaxiMin[speciesKey+geneKey][1]:
-					geneMaxiMin[speciesKey+geneKey][1] = cel[speciesKey][geneKey][geneInfoKey][0]
 
+			cel[speciesKey][geneKey][alleleCode] = (localScore,geneLen,round(averageScore,1)) 
+		
 
 		
 
-# cel ['haemophilus']['haemophilus_gene'][allele] = (a, b, c) --> a: summed score, b = maxLen, c = a/b
+# cel ['haemophilus']['haemophilus_gene'][allele] = (a, b, c) --> a: summed score, b = geneLen, c = a/b
 
 ###################################### OUT FILE 1 (LOG)
 if args.log:
 	dfil = open(workUnit+'/'+fileName+'_'+str(int(time.time()))+'.out','w')
-	dfil.write("SAMPLE:\t\t\t\t\t"+args.file+'\r\n')
+	dfil.write("SAMPLE:\t\t\t\t\t"+args.BAMFILE+'\r\n')
 	dfil.write("PENALTY:\t\t\t\t"+repr(args.penalty)+'\r\n')
-	dfil.write("MIN-THRESHOLD SCORE:\t"+repr(args.minscore)+'\r\n')
-	dfil.write("IGNORED:\t\t\t\t"+repr(ignoredReads)+' BAM READS\r\n\r\n------------------------------  RESULTS ------------------------------\r\n')
+	dfil.write("MIN-THRESHOLD SCORE:\t\t\t\t"+repr(args.minscore)+'\r\n')
+	
+	dfil.write("TOTAL ALIGNED READS:\t\t\t\t"+repr(totalReads)+'\r\n')
+	dfil.write(" - OF WHICH IGNORED:\t\t\t\t"+repr(ignoredReads)+' BAM READS\r\n\r\n------------------------------  RESULTS ------------------------------\r\n')
 
 	for speciesKey,species in cel.items():
-		dfil.write(speciesKey)
-		dfil.write('\r\n{')
 		for geneKey, geneInfo in species.items(): #geni
-			dfil.write('\t'+geneKey+'\t'+repr((geneMaxiMin[speciesKey+geneKey])[::-1])+'\r\n')
-			dfil.write('\t{\r\n')
-			for geneInfoKey,(score,maxLen,average) in sorted(geneInfo.items(), key= lambda x: x[1]): #alleli ordinati
-				dfil.write('\t\t'+geneKey + geneInfoKey+'\t\t'+repr(score)+'\t\t'+repr(maxLen)+'\t\t'+str(average)+'\r\n')
-			dfil.write('\t}\r\n')
-		dfil.write('}\r\n')
+			for geneInfoKey,(score,geneLen,average) in sorted(geneInfo.items(), key= lambda x: x[1]): #alleli ordinati
+				dfil.write('\t'.join(map(str,[speciesKey,geneKey,geneInfoKey,score,geneLen,average]))+'\r\n')
 	dfil.close()	
 
-
  
-print '\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(75,'-')+bcolors.ENDC
+print '\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(80,'-')+bcolors.ENDC
 
 for speciesKey,species in cel.items():
 	
@@ -170,15 +173,15 @@ for speciesKey,species in cel.items():
 	vals = sum([t for t in tVar.values()]) 
 	
 	
-	print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.present_loci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
-	print (' '*20)+'Missing Loci : '+', '.join([bcolors.FAIL + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 0])
+	print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.nloci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
+	if len([ta for ta in tVar.items() if v == 0]) > 0: print (' '*20)+'Missing Loci : '+', '.join([bcolors.FAIL + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 0])
+	print ""
 	
-		
-	if int((float(vals)/float(len(tVar)))*100) >= args.present_loci:
+	if int((float(vals)/float(len(tVar)))*100) >= args.nloci:
 	
-		print " \r\n >> Closest allele identification <<"
-		
-		print "\r\n  "+"Locus".ljust(7)+"Avg. Coverage".rjust(15)+" Closest Allele(s)".ljust(36)+"Score".rjust(7)+"Hits".rjust(5)
+		metamlst_print("Closest allele identification",'...',bcolors.HEADER)
+
+		print "\r\n  "+"Locus".ljust(7)+"Avg. Coverage".rjust(15)+"Score".rjust(7)+"Hits".rjust(6)+" Reference Allele(s)".ljust(36)
 		sys.stdout.flush()
 		
 		for geneKey, geneInfo in sorted(species.items(),key=lambda x:x[0]): #loci
@@ -186,60 +189,33 @@ for speciesKey,species in cel.items():
 			minValue = max([avg for (val,leng,avg) in geneInfo.values()])
 			
 			aElements = {}
-			tmp=[]
 			for k,(val,leng,avg) in geneInfo.items():
 				if avg == minValue:
 					aElements[k]=(val,leng,avg)
-					tmp.append(k)
-			tmp = ",".join(sorted(tmp))
-			
+
+			closeAllelesList = ','.join([str(a) for a in sorted(aElements.keys(), key=lambda x: int(x))][:5])+('... ('+str(len(aElements))+' more)'  if len(aElements) > 5 else '')
+		
 			sequenceKey = speciesKey+'_'+geneKey
 			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
 			genL = c.fetchone()['L']
-			#Removed: de-comment to have sequences and quality for FASTQ generation
-				# coverage = sum([len(x) for (x,q) in sequenceBank[sequenceKey].values()])
-			# print [x for (x,q) in sequenceBank[sequenceKey].values()]
+
 			coverage = sum([x for x in sequenceBank[sequenceKey].values()])
-			
-			# if coverage >= args.mincoverage * genL: 
-				# color = "\033[92m"
-				# Removed: de-comment to have sequences and quality for FASTQ generation
-					# fqfil = open(workUnit+'/'+sequenceKey+'.fasta','a')
-					# for sequenceSpec,(sequence,quality) in sequenceBank[sequenceKey].items():
-						# fqfil.write('>'+sequenceSpec+'\r\n')  
-						# fqfil.write(sequence+'\r\n')   
-					# fqfil.close()
-			# else:  color = "\033[93m"
-			
-			print "  "+bcolors.WARNING+geneKey.ljust(7)+bcolors.ENDC+str(round(float(coverage)/float(genL),2)).center(15)+bcolors.ENDC+bcolors.OKBLUE,tmp.ljust(36)+bcolors.ENDC+bcolors.HEADER+str(minValue).rjust(6)+str(aElements.itervalues().next()[1]).rjust(5)+bcolors.ENDC
+
+			print "  "+bcolors.WARNING+geneKey.ljust(7)+bcolors.ENDC+str(round(float(coverage)/float(genL),2)).rjust(15)+bcolors.ENDC+bcolors.HEADER+str(minValue).rjust(7)+str(aElements.itervalues().next()[1]).rjust(6)+bcolors.ENDC+bcolors.OKBLUE,closeAllelesList.ljust(36)+bcolors.ENDC
 		print ""
-		sys.stdout.flush()
-		# matchingProfiles = []
-		# for row in c.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(profileTrack)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC"):
-			# matchScore = str(round(float(row['T']) / float(len(tVar)),4)*100)+' %'
-			# print ("  MLST PROFILE "+str(row['profileCode'])).ljust(23)+str("MATCH: "+matchScore).rjust(10)
-			# matchingProfiles.append(row['profileCode'])
-			#v = [riw['sequence'] for riw in ]
-		
+		sys.stdout.flush()		
 		
 		sampleSequence = '' #for organism
 		
-		
-		# for geneKey, geneInfo in sorted(species.items(), key= lambda x: x[0]):
-			# alleles = [geneKey+'_'+str(k) for k,(val,leng,avg) in geneInfo.items() if avg == min([avg1 for (val1,leng1,avg1) in geneInfo.values()])]
-			# for allele in alleles:
-		
-		print " >> Consensous Sequence Build <<"
+		metamlst_print("Building Consensous Sequences",'...',bcolors.HEADER)
 			
-		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])])[0] for g1,g2 in species.items()] 
-		consenSeq = buildConsensus(args.file, dict(l),args.minscore,args.max_xM,args.debug)
+		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
+		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug)
 		
-
 		newProfile = 0
 		finWrite = 1
-		#print "      "+"Gene".ljust(6)+'Ref.'.ljust(7)+"Length".rjust(10)+"Ns".rjust(10)+"SNPs".rjust(10)
-		print "\r\n  "+"Gene".ljust(6)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(7)+"Breadth of Coverage".rjust(21)+"Notes".rjust(10)
-		for l in consenSeq:
+		print "\r\n  "+"Locus".ljust(7)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(7)+"Confidence".rjust(15)+"Notes".rjust(10)
+		for l in sorted(consenSeq, key= lambda x: x.id):
 			holes = str(l.description.split('_')[0].split('::')[1])
 			snps = int(l.description.split('_')[1].split('::')[1])
 			leng = str(len(l.seq))
@@ -258,22 +234,23 @@ for speciesKey,species in cel.items():
 					
 			else:
 				newAllele = '--'
-				if not args.all_sequences: l.seq = ''
+				if not args.a: l.seq = ''
 			
-			print "  "+(l.id.split('_')[1]).ljust(6)+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(21)+newAllele.rjust(10)
+			print "  "+bcolors.WARNING+(l.id.split('_')[1]).ljust(7)+bcolors.ENDC+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(15)+newAllele.rjust(10)
 			
 		
 		print ''
 		 
 		
 		if finWrite:
-			print '  Reconstruction Successful > Write'
+			
+			metamlst_print("Reconstruction Successfu",'WRITE',bcolors.OKGREEN)
 			profil = open(workUnit+'/'+fileName+'.nfo','a')	 
 			profil.write(speciesKey+'\t'+fileName+'\t'+"\t".join([recd.id+"::"+str(recd.seq)+'::'+str(round(1-float(recd.description.split('_')[0].split('::')[1])/float(recd.seqLen),4)*100)+'::'+str(round(float(recd.description.split('_')[1].split('::')[1])/float(recd.seqLen),4)*100) for recd in consenSeq])+'\r\n')
 			
 			profil.close()
-		else: print '  Reconstruction Failed  ('+str(round(args.min_accuracy*100,2))+'% min.accuracy) > \033[91mSkip\033[0m'
-		print ''
+		else:
+			metamlst_print("Accuracy lower than "+str(round(args.min_accuracy*100,2))+'%','SKIP',bcolors.FAIL) 
 		
 	del cel[speciesKey]
 	gc.collect()
@@ -281,5 +258,5 @@ for speciesKey,species in cel.items():
  
 MetaMLSTDBconn.close() 
 
-if len(cel): print '\033[92m'+'[ - Completed - ]'.rjust(75,' ')+'\033[0m'
+if len(cel): print '\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m'
 

@@ -1,38 +1,64 @@
 #!/usr/bin/env python
+try: 
+	import math
+	import sqlite3
+	import subprocess
+	import time
+	import itertools
+	import gc
+	import os
+	import sys
+	from metaMLST_functions import *
+	from StringIO import StringIO
+except ImportError as e:
+	print "Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re"
+	sys.exit(1)
  
-import sys,os,subprocess,sqlite3,argparse,difflib,math,itertools
-from StringIO import StringIO
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
-from Bio.Align.Applications import MuscleCommandline
-from metaMLST_functions import *
+
+try:
+	from Bio import SeqIO
+	from Bio.Seq import Seq
+	from Bio.SeqRecord import SeqRecord
+	from Bio.Alphabet import IUPAC
+	from Bio.Align.Applications import MuscleCommandline
+except ImportError as e:
+	metamlst_print("Failed in importing Biopython. Please check Biopython is installed properly on your system!",'FAIL',bcolors.FAIL)
+	sys.exit(1)
+
+
+
+
  
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
-parser.add_argument("folder", help="folder containing .nfo MetaMLST.py files")
-parser.add_argument("-d","--database", help="MetaMLST Database File (created with metaMLST-index", required=True)
-parser.add_argument("--meta", help="metadata file (CSV)")
-parser.add_argument("--idField", help="field containig the 'sampleID' value", default=0, type=int)
-parser.add_argument("-z","--allele_max_snps", help="Maximum Edit Distance threshold to call a new MLST allele", default=100, type=int)
- 
-parser.add_argument("--outseqformat", choices=['A', 'A+', 'B', 'B+', 'C','C+'], help="A  : Concatenated Fasta (Detected STs)\r\n\
-A+ : Concatenated Fasta (All STs)\r\n\
-B  : Single loci (New loci only)\r\n\
-B+ : Single loci (All loci)\r\n\
-C  : CSV ST Table")
-parser.add_argument("--filter", help="focus on specific set of organisms only (METAMLST-KEY, space separated)",  nargs='+')
-parser.add_argument("-j", help="Couple the output sequences with a list of metadata (comma separated list of fields from metadata file specified with --meta)")
-parser.add_argument("--jgroup", help="Group the output sequences by ST and not by sample. Requires -j", action="store_true")
 
-parser.add_argument("--muscle_path", default="muscle")
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+		description='Detects the MLST profiles from a collection of intermediate files from MetaMLST.py')
+
+parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files")
+parser.add_argument("-d", metavar="DB_PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", required=True)
+parser.add_argument("--meta", metavar="METADATA_PATH", help="Metadata file (CSV)")
+parser.add_argument("--idField", help="Field number pointing to the 'sampleID' value in the metadata file", default=0, type=int)
+parser.add_argument("-z", metavar="ED", help="Maximum Edit Distance from the closest reference to call a new MLST allele. Default: 5", default=5, type=int)
+ 
+parser.add_argument("--outseqformat", choices=['A', 'A+', 'B', 'B+', 'C','C+'], help="A  : Concatenated Fasta (Only Detected STs)\r\n\
+A+ : Concatenated Fasta (All STs)\r\n\
+B  : Single loci (Only New Loci)\r\n\
+B+ : Single loci (All loci)\r\n\
+C  : CSV STs Table [default]",default="C")
+
+parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
+
+parser.add_argument("-j", metavar="subjectID,diet,age...", help="Embed a LIST of metadata in the the output sequences (A or A+ outseqformat modes only). Requires a comma separated list of field names from the metadata file specified with --meta")
+parser.add_argument("--jgroup", help="Group the output sequences (A or A+ outseqformat modes only) by ST and NOT by sample. Requires -j", action="store_true")
+
+parser.add_argument("--muscle_path", help="Path of MUSCLE (default: 'muscle')", default="muscle")
 
 args=parser.parse_args()
 
 try:
-	conn = sqlite3.connect(args.database)
+	conn = sqlite3.connect(args.d)
 except IOError: 
-	print "IOError: unable to access "+args.database+"!"
+	print "IOError: unable to access "+args.d+"!"
 conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
 
@@ -65,16 +91,14 @@ for file in os.listdir(args.folder):
 
 for bacterium,bactRecord in cel.items(): #For each bacterium:
 
-	#bactRecord = ( {gene_allele: (sequence,accuracy,snps) , ...} , sampleName ) 
-	
-	print '\r\n----------------------------------------------------------------------\r\n'+bacterium+'\r\n----------------------------------------------------------------------\r\n'
+
+	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
+	print bcolors.OKBLUE+'|'+bcolors.ENDC+bacterium.center(78)+bcolors.OKBLUE+'|'+bcolors.ENDC
+	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
 	 
 	profil = open(args.folder+'/merged/'+bacterium+'_ST.txt','w')
 	
-	#profil.write(bacterium+'\r\n')
-	
 	stringBase = {}
-	
 	oldProfiles = {}
 	genesBase={}
 	profilesBase={}
@@ -86,7 +110,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	
 	cursor.execute("SELECT profileCode FROM profiles WHERE bacterium = ? ORDER BY profileCode DESC LIMIT 1",(bacterium,))
 
-	# lastProfile = int(cursor.fetchone()['profileCode'])
+	
 	lastProfile = 100000
 	# lastGenes = dict((row['gene'],row['maxGene']) for row in cursor.execute("SELECT gene, MAX(alleleVariant) as maxGene FROM alleles WHERE bacterium = ? GROUP BY gene",(bacterium,)))
 	lastGenes = dict((row['gene'],100000) for row in cursor.execute("SELECT gene, MAX(alleleVariant) as maxGene FROM alleles WHERE bacterium = ? GROUP BY gene",(bacterium,)))
@@ -127,11 +151,11 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				
 				geneCategoryCode = 1 #default: blue (new allele, accepted)
 				
-				if args.allele_max_snps != None: 
+				if args.z != None: 
 					geneCategoryCode = 3 #default becomes now not accepted
 					
 					for refCode,refSeq in sequencesGetAll(conn,bacterium,geneName).items():
-						if stringDiff(geneSeq,refSeq) <= args.allele_max_snps:
+						if stringDiff(geneSeq,refSeq) <= args.z:
 						    #print geneName,refCode,stringDiff(geneSeq,refSeq)
 						    geneCategoryCode = 1 # if match allele_max_snps: accept
 						    break
@@ -185,7 +209,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			lastProfile+=1
 			
 			profileCategoryCode = 1 
-			if args.allele_max_snps != None: 
+			if args.z != None: 
 				for k,(v,cat) in profileLine.items():
 				    if cat == 3: #if rejectable allele
 					profileCategoryCode = 3 #rejectable profile
@@ -206,8 +230,6 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		#           3	    |  RED    -> New, with new alleles some of which rejectable	
 		#                   | 
 	#Old profiles
-	
-	
 	
 	
 	profil.write('ST\t'+'\t'.join([x for x in sorted(lastGenes.keys())] )+'\r\n')
@@ -238,7 +260,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 
 	#NEW PROFILES (REJECTED)
 	
-	print '\n\nREJECTED NEW MLST profiles, SNPs threshold: '+str(args.allele_max_snps)+'\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
+	print '\n\nREJECTED NEW MLST profiles, SNPs threshold: '+str(args.z)+'\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
 	for profileID,(profile,hits,profileCategoryCode) in encounteredProfiles.items():
 		
 		if profileCategoryCode not in [3]: continue
