@@ -15,7 +15,7 @@ MetaMLST works by reconstructing the MLST loci-sequences using the closest refer
 
 ### How can I use it? ###
 
-Please refer to the [*Wiki*](https://bitbucket.org/CibioCM/metamlst/wiki/) for the *documentation*.
+Please refer to the [**Wiki**](https://bitbucket.org/CibioCM/metamlst/wiki/) for the *documentation*.
 
 ### Who do I talk to? ###
 
