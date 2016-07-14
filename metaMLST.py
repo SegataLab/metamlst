@@ -39,7 +39,7 @@ parser.add_argument("--min_read_len", metavar="LENGTH", help="Minimum BowTie2 al
 parser.add_argument("--min_accuracy", metavar="CONFIDENCE", help="Minimum threshold on Confidence score (percentage) to pass the reconstruction step", default=0.90, type=float)
 parser.add_argument("--debug", help="Debug Mode", action='store_true', default=False) 
 
-parser.add_argument("-nloci", metavar="NLOCI", help="Do not discard samples where at least NLOCI (percent) are detected. This can lead to imperfect MLST typing", default=100, type=int)
+parser.add_argument("--nloci", metavar="NLOCI", help="Do not discard samples where at least NLOCI (percent) are detected. This can lead to imperfect MLST typing", default=100, type=int)
 parser.add_argument("--log", help="generate logfiles", action="store_true") 
 parser.add_argument("-a", help="Write known sequences", action="store_true")
 
