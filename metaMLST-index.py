@@ -56,14 +56,14 @@ if os.path.isfile(args.database):
 		print '\t',cursor.fetchone()['Mv'], 'total loci'
 		cursor.execute("SELECT COUNT(*) as Mv,SUM(LENGTH(sequence)) as Se FROM alleles WHERE 1")
 		cont=cursor.fetchone()
-		print '\t',cont['Mv'],' total alleles (~'+str(round(cont['Se']/1000000.0,2))+' Mbps)'
+		print '\t',cont['Mv'],' total alleles (~'+str(round((cont['Se'] if cont['Se'] is not None else 0)/1000000.0,2))+' Mbps)'
 		cursor.execute("SELECT COUNT(DISTINCT profileCode) as Mv FROM profiles WHERE 1")
 		print '\t',cursor.fetchone()['Mv'], 'total profiles'
 
 	except sqlite3.OperationalError as e:
 		metamlst_print("Database Error: "+str(e),'FAIL',bcolors.FAIL)
 
-	sys.exit(0)
+
 
 
 if args.listkeys:
@@ -189,9 +189,9 @@ if args.typings or args.sequences:
 			
 			if len(problematicList) > 0:
 				with open('metamlst_logfile.log','a') as logf:
-					logf.write('The following STs for '+organism+' were skipped as one or more of alleles could not be found:\r\n')
+					logf.write('The following STs for '+organism+' were skipped as one or more of the alleles comprising the profile could not be found in your DB:\r\n')
 					for key,element in problematicList.items():
-						logf.write('ST-'+key+'\t'.join(element))
+						logf.write('ST-'+' '+key+'\t'.join(element)+' was missing \r\n')
 					logf.write(('-'*120)+'r\n')
 				
 			#print '\r'+(' COMPLETED '+organism).ljust(26),('Added '+str(profilesLoaded)+' STs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(28) 

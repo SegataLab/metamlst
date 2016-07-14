@@ -26,8 +26,6 @@ except ImportError as e:
 	sys.exit(1)
 
 
-
-
  
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 
@@ -36,22 +34,18 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 
 parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files")
 parser.add_argument("-d", metavar="DB_PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", required=True)
-parser.add_argument("--meta", metavar="METADATA_PATH", help="Metadata file (CSV)")
-parser.add_argument("--idField", help="Field number pointing to the 'sampleID' value in the metadata file", default=0, type=int)
+parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 parser.add_argument("-z", metavar="ED", help="Maximum Edit Distance from the closest reference to call a new MLST allele. Default: 5", default=5, type=int)
- 
+
+parser.add_argument("--meta", metavar="METADATA_PATH", help="Metadata file (CSV)")
+parser.add_argument("--idField", help="Field number pointing to the 'sampleID' value in the metadata file", default=0, type=int) 
 parser.add_argument("--outseqformat", choices=['A', 'A+', 'B', 'B+', 'C','C+'], help="A  : Concatenated Fasta (Only Detected STs)\r\n\
 A+ : Concatenated Fasta (All STs)\r\n\
 B  : Single loci (Only New Loci)\r\n\
 B+ : Single loci (All loci)\r\n\
-C  : CSV STs Table [default]",default="C")
-
-parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
-
-parser.add_argument("-j", metavar="subjectID,diet,age...", help="Embed a LIST of metadata in the the output sequences (A or A+ outseqformat modes only). Requires a comma separated list of field names from the metadata file specified with --meta")
-parser.add_argument("--jgroup", help="Group the output sequences (A or A+ outseqformat modes only) by ST and NOT by sample. Requires -j", action="store_true")
-
-parser.add_argument("--muscle_path", help="Path of MUSCLE (default: 'muscle')", default="muscle")
+C  : CSV STs Table [default]")
+parser.add_argument("-j", metavar="subjectID,diet,age...", help="Embed a LIST of metadata in the the output sequences (A or A+ outseqformat modes). Requires a comma separated list of field names from the metadata file specified with --meta")
+parser.add_argument("--jgroup", help="Group the output sequences (A or A+ outseqformat modes) by ST, rather than by sample. Requires -j", action="store_true")
 
 args=parser.parse_args()
 
@@ -106,8 +100,8 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	isolates=[]
 	newSequences = {} #contains the new seqs (reconstructed) for further alignment
 	mainGeneStructure = {} #key:label,value:sequence. 
-	
-	
+	metadataJoinField = 'sampleID'
+
 	cursor.execute("SELECT profileCode FROM profiles WHERE bacterium = ? ORDER BY profileCode DESC LIMIT 1",(bacterium,))
 
 	
@@ -250,8 +244,8 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		
 		if profileCategoryCode not in [1,2]: continue
 	      
-		if profileCategoryCode == 1: profileNumber = bcolors.OKGREEN+str(profileID)+bcolors.ENDC
-		elif profileCategoryCode == 2: profileNumber = bcolors.WARNING+str(profileID)+bcolors.ENDC
+		if profileCategoryCode == 1: profileNumber = bcolors.WARNING+str(profileID)+bcolors.ENDC
+		elif profileCategoryCode == 2: profileNumber = bcolors.OKGREEN+str(profileID)+bcolors.ENDC
 		
 		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
 		sys.stdout.flush()
@@ -260,7 +254,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 
 	#NEW PROFILES (REJECTED)
 	
-	print '\n\nREJECTED NEW MLST profiles, SNPs threshold: '+str(args.z)+'\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
+	print '\n\nREJECTED NEW MLST profiles, SNPs threshold (-z): '+str(args.z)+'\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
 	for profileID,(profile,hits,profileCategoryCode) in encounteredProfiles.items():
 		
 		if profileCategoryCode not in [3]: continue
@@ -272,28 +266,33 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		#profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
 	
 	profil.close()
-	
+	print ""
+ 
+	metamlst_print("Outputing results",'...',bcolors.ENDC)
 	
 	#ISOLATES FILE OUTPUT 
-	isolafil = open(args.folder+'/merged/'+bacterium+'_isolates.txt','w') 
+	isolafil = open(args.folder+'/merged/'+bacterium+'_report.txt','w') 
 	identifiers = {}
 	p1line = 0
 	keys=[]
+
 	
 	if args.meta:
+
 		for line in open(args.meta):
 		      if line == '': continue
 		      if not p1line: 
 			      p1line=1
 			      keys = [str(x).strip() for x in line.split('\t')]
+			      metadataJoinField = keys[args.idField]
 		      else:
 			      l = line.strip().split('\t') 
 			      if len(l) == len(keys):
+
 				  identifiers[l[args.idField]] = dict((keys[i],l[i]) for i in range(0,len(keys)))  
-				  #print "put",l[args.idField]
-	  
+				  
 	
-	isolafil.write('ST\tBreadth of coverage\t'+'\t'.join(keys)+'\n')
+	isolafil.write('ST\tConfidence\t'+'\t'.join(keys)+'\n')
 	
 	
 	
@@ -311,12 +310,12 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			isolafil.write(str(profileST)+'\t'+str(round(meanAccur,2))+'\t'+'\t'.join(strl)+'\n')
 			
 			STmapper[profileST].append(identifiers[sampleName])
+			
 		else: 
 			isolafil.write(str(profileST)+'\t'+str(round(meanAccur,2))+'\t'+str(sampleName)+'\n')
 			
 			#if args.j: STmapper[profileST] = dict((virtKey,'-') for virtKey in args.j)
 			STmapper[profileST].append({'sampleID':sampleName})
-			
 			
 	isolafil.close()
 		
@@ -376,20 +375,24 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				
 				if len(tld) > 1: #more than one length: need to align!
 				
-					print(('\tAligning Sequences ['+gene+']:').ljust(50)),
+					#print(('\tAligning Sequences ['+gene+']:').ljust(50)),
+					metamlst_print('Sequences of ['+gene+'] need to be aligned','...',bcolors.ENDC)
 					sys.stdout.flush()
 					SeqIO.write(seqs,cS, "fasta")
-					muscle_cline = MuscleCommandline(args.muscle_path)
+					muscle_cline = MuscleCommandline('muscle')
 					stdout, stderr = muscle_cline(stdin=cS.getvalue())
 					for sequence in SeqIO.parse(StringIO(stdout), "fasta"):
 						seqTable[sequence.id] = str(sequence.seq)
+					metamlst_print('Sequences of ['+gene+'] need to be aligned','DONE',bcolors.OKGREEN)
 				else:
-					print(('\tAligned Sequences ['+gene+'] ('+str(len(tld))+'):').ljust(50)),
+					#print(('\tAligned Sequences ['+gene+'] ('+str(len(tld))+'):').ljust(50)),
+					metamlst_print('Sequences of ['+gene+'] are aligned','OK',bcolors.OKGREEN)
 					for seq in seqs:
 						seqTable[seq.id] = str(seq.seq) 
 						
-				print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)
-				sys.stdout.flush()
+				#print(bcolors.OKGREEN+'[ - Done - ]'+bcolors.ENDC)
+			metamlst_print('Sequences Alignment Completed','DONE',bcolors.OKGREEN)
+			sys.stdout.flush()
 	
 			phyloSeq = []
 			#OLD 
@@ -417,13 +420,16 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 								else:
 									prog+=1
 									descriptionString = '-'.join([kll+'{'+str(ell)+'}' for kll,ell in i.items()  if kll in args.j.split(',')])
-									phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = descriptionString))
+									phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
 									
 						#output one sequence, for the current ST with all the metadata grouped
-						if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = descriptionString))
+						if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
 					else:
 						for profileInstance in STmapper[profileCode]:
-							phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=profileInstance['sampleID'], description = ''))
+							metadataPointer = metadataJoinField if metadataJoinField in profileInstance else 'sampleID'
+							
+							phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
+
 				
 				elif args.outseqformat == 'A+': #old, non present, but required to be added
 					for gen,all in sorted(profile.items()):
@@ -457,13 +463,21 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 								#for (kl,v) in i.items():
 								prog+=1
 								descriptionString = '-'.join([kll+'{'+str(ell)+'}' for kll,ell in i.items() if kll in args.j.split(',')])
-								phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = descriptionString))
+								phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
 					#output one sequence, for the current ST with all the metadata grouped
-					if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = descriptionString))
+					if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
 				else:
 					for profileInstance in STmapper[profileCode]: 
-						phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=profileInstance['sampleID'], description = ''))
+						metadataPointer = metadataJoinField if metadataJoinField in profileInstance else 'sampleID'
+						phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
 			
 			SeqIO.write(phyloSeq,args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")
+
+print "Color Legend:\n"+"-"*80
+print "Alleles:"+'\t'+"[Known]"+'\t'+bcolors.OKBLUE+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW-RECURRING]"+bcolors.ENDC
+print "Profiles:"+'\t'+bcolors.FAIL+"[Known]"+bcolors.ENDC+'\t'+bcolors.WARNING+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW*]"+bcolors.ENDC
+print "New* profiles are composed by Known and Recurring alleles only"
+print '-'*80
+
 
 print "Completed"
