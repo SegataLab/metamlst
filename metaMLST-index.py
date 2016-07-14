@@ -22,7 +22,7 @@ from metaMLST_functions import *
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 		description='Builds and manages the MetaMLST SQLite Databases')
 
-parser.add_argument("-d","--database", help="MetaMLST Database File (will create a new DB or update an existing one)", required=True)
+
 parser.add_argument("-t", "--typings", help="Typings in TAB separated file (Build New Database)")
 parser.add_argument("-s", "--sequences", help="Sequences in FASTA format (comma separated list of files)")
 parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta file") 
@@ -30,6 +30,7 @@ parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta f
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
 parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
+parser.add_argument("database", metavar="DB_PATH", help="MetaMLST Database File (will create a new DB or update an existing one)")
 
 args=parser.parse_args()
 
@@ -41,7 +42,28 @@ except IOError:
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
 	sys.exit(1)
 
+if os.path.isfile(args.database):
+	try:
+		cursor.execute("CREATE TABLE IF NOT EXISTS organisms (organismkey varchar(255), label VARCHAR(255), PRIMARY KEY(organismkey))")
+		cursor.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
+		cursor.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
+		cursor.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
+	
+		print "Database",args.database,'contains:'
+		cursor.execute("SELECT COUNT(*) as Mv FROM organisms WHERE 1")
+		print '\t',cursor.fetchone()['Mv'], 'organisms'
+		cursor.execute("SELECT COUNT(*) as Mv FROM genes WHERE 1")
+		print '\t',cursor.fetchone()['Mv'], 'total loci'
+		cursor.execute("SELECT COUNT(*) as Mv,SUM(LENGTH(sequence)) as Se FROM alleles WHERE 1")
+		cont=cursor.fetchone()
+		print '\t',cont['Mv'],' total alleles (~'+str(round(cont['Se']/1000000.0,2))+' Mbps)'
+		cursor.execute("SELECT COUNT(DISTINCT profileCode) as Mv FROM profiles WHERE 1")
+		print '\t',cursor.fetchone()['Mv'], 'total profiles'
 
+	except sqlite3.OperationalError as e:
+		metamlst_print("Database Error: "+str(e),'FAIL',bcolors.FAIL)
+
+	sys.exit(0)
 
 
 if args.listkeys:
@@ -54,11 +76,6 @@ if args.listkeys:
 
 if args.typings or args.sequences:
 
-	cursor.execute("CREATE TABLE IF NOT EXISTS organisms (organismkey varchar(255), label VARCHAR(255), PRIMARY KEY(organismkey))")
-	cursor.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
-	cursor.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
-	cursor.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
-	
 	if args.sequences:
 		
 		for file in [seq.strip() for seq in args.sequences.split(',')]:
