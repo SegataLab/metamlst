@@ -47,9 +47,8 @@ except IOError:
 if args.listkeys:
 	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
 	print '-'*65
-	for elem in cursor.execute("SELECT * FROM organisms"):
-		
-		print (elem['label'].ljust(30)+(' '*5) if elem['label'] is not None else '--'.ljust(30) )+(' ')*5+elem['organismkey'].ljust(30)
+	for key,label in db_getOrganisms(conn).items():
+		print key.ljust(30)+(' ')*5+label.ljust(30)
 	sys.exit(0)
 
 

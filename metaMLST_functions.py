@@ -254,3 +254,9 @@ class bcolors:
 	FAIL = '\033[91m'
 	ENDC = '\033[0m'
 	OKGREEN2 = '\033[42m\033[30m'
+
+def db_getOrganisms(conn,bacterium=None):
+	e = conn.cursor()
+	t= dict((elem['organismkey'],(elem['label']) if elem['label'] is not None else '('+elem['organismkey']+')') for elem in e.execute("SELECT * FROM organisms"))
+	if bacterium: return t[bacterium] 
+	else: return  t
