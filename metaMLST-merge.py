@@ -93,7 +93,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 
 
 	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
-	print bcolors.OKBLUE+'|'+bcolors.ENDC+bacterium.center(78)+bcolors.OKBLUE+'|'+bcolors.ENDC
+	print bcolors.OKBLUE+'|'+bcolors.ENDC+str(db_getOrganisms(conn,bacterium)).center(78)+bcolors.OKBLUE+'|'+bcolors.ENDC
 	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
 	 
 	profil = open(args.folder+'/merged/'+bacterium+'_ST.txt','w')
