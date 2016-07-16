@@ -1,4 +1,0 @@
-jksampleID	metadata_field_1	metadata_field_2	another_metadata_field
-SRS013261_epidermidis	value1	value2	value3
-SRS015937_epidermidis	valueA	valueB	valueC
-
