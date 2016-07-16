@@ -17,7 +17,8 @@ MetaMLST works by reconstructing the MLST loci-sequences using the closest refer
 
 Please refer to the [**Wiki**](https://bitbucket.org/CibioCM/metamlst/wiki/) for the *documentation*.
 
-### Who do I talk to? ###
+### Where can I get support? ###
 
-* MetaMLST at [SegataLab](http://segatalab.cibio.unitn.it/tools/metamlst)
+* Bugs and Support: [**MetaMLST Users Support Group**](https://groups.google.com/forum/#!forum/metamlst)
+* Project page at [SegataLab](http://segatalab.cibio.unitn.it/tools/metamlst)
 * Project [Wiki](https://bitbucket.org/CibioCM/metamlst/wiki/)
