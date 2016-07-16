@@ -59,7 +59,7 @@ echo "
 Executing: metaMLST-merge.py -d ../../metamlstDB_2015.db --meta test_metadata.txt ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2015.db --meta sample_metadata.txt --outseqformat A+ ./out
+../../metaMLST-merge.py -d ../../metamlstDB_2015.db --meta sample_metadata.txt --outseqformat A ./out
 
 
 
