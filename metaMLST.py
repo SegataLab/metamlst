@@ -244,7 +244,7 @@ for speciesKey,species in cel.items():
 		
 		if finWrite:
 			
-			metamlst_print("Reconstruction Successfu",'WRITE',bcolors.OKGREEN)
+			metamlst_print("Reconstruction Successful",'WRITE',bcolors.OKGREEN)
 			profil = open(workUnit+'/'+fileName+'.nfo','a')	 
 			profil.write(speciesKey+'\t'+fileName+'\t'+"\t".join([recd.id+"::"+str(recd.seq)+'::'+str(round(1-float(recd.description.split('_')[0].split('::')[1])/float(recd.seqLen),4)*100)+'::'+str(round(float(recd.description.split('_')[1].split('::')[1])/float(recd.seqLen),4)*100) for recd in consenSeq])+'\r\n')
 			

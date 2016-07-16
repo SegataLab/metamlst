@@ -480,4 +480,4 @@ print "New* profiles are composed by Known and Recurring alleles only"
 print '-'*80
 
 
-print "Completed"
+print "Completed! Have a nice day."
