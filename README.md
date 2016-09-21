@@ -22,3 +22,7 @@ Please refer to the [**Wiki**](https://bitbucket.org/CibioCM/metamlst/wiki/) for
 * Bugs and Support: [**MetaMLST Users Support Group**](https://groups.google.com/forum/#!forum/metamlst)
 * Project page at [SegataLab](http://segatalab.cibio.unitn.it/tools/metamlst)
 * Project [Wiki](https://bitbucket.org/CibioCM/metamlst/wiki/)
+
+### Publications ###
+
+* Moreno Zolfo, Adrian Tett, Olivier Jousson, Claudio Donati and Nicola Segata - **[MetaMLST: multi-locus strain-level bacterial typing from metagenomic samples](http://nar.oxfordjournals.org/content/early/2016/09/19/nar.gkw837.full)** - *Nucleic Acids Research, 2016* DOI: 10.1093/nar/gkw837
