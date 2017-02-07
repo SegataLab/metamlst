@@ -17,7 +17,7 @@ known (i.e. previously encountered).
 Input     : A small subset of HMP sample SRS015937, FASTQ format
             A metadata-file: test_metadata.txt, tab-separated format
 
-Database  : Pre-made database: ../../metamlstDB_2015.db
+Database  : Pre-made database: ../../metamlstDB_2017.db
 
 
 Detection : SRS015937: S. epidermidis ST-100001 (New ST, first pass)
@@ -42,10 +42,10 @@ Output    : - Report files (first pass):
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 #Map the fastq with Bowtie
 echo "
@@ -62,15 +62,15 @@ echo "
 Executing: metaMLST.py -d sepidermidis.db SRS015937_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
-../../metaMLST.py -d ../../metamlstDB_2015.db SRS015937_epidermidis.bam -o ./out/
+../../metaMLST.py -d ../../metamlstDB_2017.db SRS015937_epidermidis.bam -o ./out/
 
 #Type the STs
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2015.db --outseqformat B+ ./out
+Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2015.db --outseqformat B+ ./out
+../../metaMLST-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
  
 
 echo "

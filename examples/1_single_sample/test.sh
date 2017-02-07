@@ -9,10 +9,10 @@ database
 
 Input     : A small subset of HMP sample SRS013261, FASTQ format
 
-Database  : Pre-made database: ../../metamlstDB_2015.db.
+Database  : Pre-made database: ../../metamlstDB_2017.db.
 
 Detection : SRS013261: S. epidermidis ST-19
-          
+
 Output    : - Report file:
               - ./out/merged/sepidermidis_report.txt
             - Updated Typing list (STs):
@@ -23,11 +23,11 @@ Output    : - Report file:
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
 
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 #Map the fastq with Bowtie
 echo "
@@ -45,7 +45,7 @@ Executing: metaMLST.py -d sepidermidis.db SRS013261_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
 
-../../metaMLST.py -d ../../metamlstDB_2015.db SRS013261_epidermidis.bam -o ./out/
+../../metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 
 #Type the STs
 echo "
@@ -54,5 +54,5 @@ Executing: metaMLST-merge.py -d sepidermidis.db ./out
 -------------------------------------------------------------------------------
 "
 
-../../metaMLST-merge.py -d ../../metamlstDB_2015.db ./out
+../../metaMLST-merge.py -d ../../metamlstDB_2017.db ./out
 

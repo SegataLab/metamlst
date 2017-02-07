@@ -10,7 +10,7 @@ Phylogenetic Analysis (trees and Minimum Spanning Trees)
 
 Input     : 27 files from the HMP (filtered reads matching to P. acnes)
 
-Database  : Pre-made database: ../../metamlstDB_2015.db
+Database  : Pre-made database: ../../metamlstDB_2017.db
 
 Detection : 13 known STs, 14 new STs (ID >100000)
 
@@ -26,10 +26,10 @@ unzip 5_phylogenetic_analysis_files.zip
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2015.db
+../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 
 for i in ./*.fastq; do
@@ -45,21 +45,21 @@ Executing: bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_Mme
   
   echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d ../../metamlstDB_2015.db "${bs%%.*}".bam --filter pacnes -o ./out/
+Executing: metaMLST.py -d ../../metamlstDB_2017.db "${bs%%.*}".bam --filter pacnes -o ./out/
 -------------------------------------------------------------------------------
 " 
   #Run MetaMLST
-  ../../metaMLST.py -d ../../metamlstDB_2015.db ${bs%%.*}.bam --filter pacnes -o ./out/
+  ../../metaMLST.py -d ../../metamlstDB_2017.db ${bs%%.*}.bam --filter pacnes -o ./out/
 done
 
 
 #Type the STs
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2015.db --meta test_metadata.txt ./out
+Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db --meta test_metadata.txt ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2015.db --meta sample_metadata.txt --outseqformat A ./out
+../../metaMLST-merge.py -d ../../metamlstDB_2017.db --meta sample_metadata.txt --outseqformat A ./out
 
 
 
