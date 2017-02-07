@@ -254,9 +254,64 @@ class bcolors:
 	FAIL = '\033[91m'
 	ENDC = '\033[0m'
 	OKGREEN2 = '\033[42m\033[30m'
+	RED = '\033[1;91m'
+	CYAN = '\033[0;37m'
 
 def db_getOrganisms(conn,bacterium=None):
 	e = conn.cursor()
 	t= dict((elem['organismkey'],(elem['label']) if elem['label'] is not None else '('+elem['organismkey']+')') for elem in e.execute("SELECT * FROM organisms"))
 	if bacterium: return t[bacterium] 
 	else: return  t
+	
+class metaMLST_db:
+	
+	cursor = None
+	conn = None
+
+	def __init__(self,dbPath):
+		
+		try:
+			self.conn = sqlite3.connect(dbPath)
+			self.conn.row_factory = sqlite3.Row
+			self.cursor = self.conn.cursor()
+		except IOError: 
+			print "IOError: unable to access "+args.database+"!"
+	
+	def getOrganisms(self,bacterium=None):
+		listAlleles = []
+
+		t= dict((elem['organismkey'],(elem['label']) if elem['label'] is not None else '('+elem['organismkey']+')') for elem in self.cursor.execute("SELECT * FROM organisms"))
+		if bacterium: return t[bacterium] 
+		else: return  t
+	
+
+	def getAlleles(self,profile):
+		listAlleles = []
+		for row in self.cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ?",(profile,)):
+			listAlleles.append(SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
+		return listAlleles
+		
+	def getGene(self,profile,geneName):
+		listAlleles = []
+		for row in self.cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ? AND gene = ?",(profile,geneName)):
+			listAlleles.append(SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
+		return listAlleles
+		
+	def getGeneNames(self,profile):
+		lister = []
+		for row in self.cursor.execute("SELECT geneName FROM genes WHERE bacterium = ?",(profile,)):
+			lister.append(row['geneName'])
+		return lister
+		
+
+	def defineProfile(self,geneList):
+	
+		recs=[]
+		result = None
+		for allele in geneList:
+			self.cursor.execute("SELECT recID FROM alleles WHERE bacterium||'_'||gene||'_'||alleleVariant = ?",(allele,))
+			result = self.cursor.fetchone()
+			if result: recs.append(str(result['recID']))
+		
+		return [(row['profileCode'],int((float(row['T'])/float(len(recs)))*100)) for row in self.cursor.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC")] if result else [(0,0)]
+		

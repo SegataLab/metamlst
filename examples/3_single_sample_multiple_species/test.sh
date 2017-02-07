@@ -9,7 +9,7 @@ database, and detects the two species present.
 
 Input    : A small subset of HMP sample SRS013261, FASTQ format
 
-Database : Pre-made database: ../../metamlstDB_2015.db.
+Database : Pre-made database: ../../metamlstDB_2017.db.
 
 Detection : SRS013261: S. epidermidis ST-19
                        P. acnes ST-4
@@ -26,12 +26,12 @@ Output    : - Report files:
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2015.db
+Executing: metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
 
 #Generate a Bowtie2 index
-../../metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2015.db
+../../metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
 
 echo "
 -------------------------------------------------------------------------------
@@ -44,19 +44,19 @@ bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_sepidermidis -
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d ../../metamlstDB_2015.db SRS013261_epidermidis.bam -o ./out/
+Executing: metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
 
 #Run MetaMLST on a single sample
-../../metaMLST.py -d ../../metamlstDB_2015.db SRS013261_epidermidis.bam -o ./out/
+../../metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2015.db ./out
+Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db ./out
 -------------------------------------------------------------------------------
 "
 
 #Type the STs
-../../metaMLST-merge.py -d ../../metamlstDB_2015.db ./out
+../../metaMLST-merge.py -d ../../metamlstDB_2017.db ./out
 

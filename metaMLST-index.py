@@ -95,7 +95,7 @@ if args.typings or args.sequences:
 					sequence = seq_record.seq
 					
 					#IF line formatted in the correct way
-					if re.match('^([a-zA-Z-])*$',organism) and re.match('^([a-zA-Z0-9|])*$',gene) and re.match('^([0-9])*$',allele):
+					if re.match('^([a-zA-Z0-9-])*$',organism) and re.match('^([a-zA-Z0-9-])*$',gene) and re.match('^([0-9])*$',allele):
 						
 						#if gene-allele couple is NOT present in database
 						if len([row for row in cursor.execute("SELECT 1 FROM alleles WHERE bacterium = ? AND gene = ? and alleleVariant = ?",(organism,gene,allele))]) == 0:
@@ -166,7 +166,7 @@ if args.typings or args.sequences:
 							
 							if (genes[key]+'_'+str(variant)) in recID_Cache: recIDs.append(recID_Cache[genes[key]+'_'+str(variant)])
 							
-							elif genes[key] in ['clonal_complex','species','mlst_clade']: continue
+							elif genes[key] in ['clonal_complex','clonal-complex','species','mlst_clade']: continue
 							else:
 								if str(data[0]) not in problematicList: problematicList[str(data[0])] = []
 								problematicList[str(data[0])].append(organism+'_'+genes[key]+'_'+variant)
@@ -182,7 +182,10 @@ if args.typings or args.sequences:
 						profilesLoaded +=1
 						for element in recIDs:
 							profilesQuery.append((organism,data[0],element))
-							
+					else: print "DDD"
+			if profilesLoaded>0:
+				cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))				
+
 			metamlst_print(str(profilesLoaded)+'/'+str(leng)+' PROFILES LOADED',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True,newLine=True)
 			
 			cursor.executemany("INSERT INTO profiles (bacterium, profileCode, alleleCode) VALUES (?,?,?)", profilesQuery)
@@ -215,7 +218,7 @@ if args.buildindex:
 	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
 if args.buildblast:
 	
-	dump_db_to_fasta('out.fa',args.database)
+	dump_db_to_fasta(conn,'out.fa')
 	
 	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 	sys.stdout.flush()
@@ -223,7 +226,7 @@ if args.buildblast:
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("makeblastdb -in out.fa -dbtype nucl -out "+args.buildblast,shell=True, stdout=devnull)
 	child.wait()
-	os.remove('out.fa')
+#	os.remove('out.fa')
 	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True)
 
 conn.commit()
