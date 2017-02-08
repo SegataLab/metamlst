@@ -26,12 +26,12 @@ Output    : - Report files:
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
+Executing: metamlst-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
 
 #Generate a Bowtie2 index
-../../metaMLST-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
+../../metamlst-index.py -i bowtie_sepidermidis ../../metamlstDB_2017.db
 
 echo "
 -------------------------------------------------------------------------------
@@ -44,19 +44,19 @@ bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_sepidermidis -
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
+Executing: metamlst.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
 
 #Run MetaMLST on a single sample
-../../metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
+../../metamlst.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db ./out
+Executing: metamlst-merge.py -d ../../metamlstDB_2017.db ./out
 -------------------------------------------------------------------------------
 "
 
 #Type the STs
-../../metaMLST-merge.py -d ../../metamlstDB_2017.db ./out
+../../metamlst-merge.py -d ../../metamlstDB_2017.db ./out
 

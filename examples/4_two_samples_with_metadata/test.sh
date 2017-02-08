@@ -32,10 +32,10 @@ Output    : - Report files:
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+Executing: metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+../../metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 #Map the fastq with Bowtie
 echo "
@@ -57,24 +57,24 @@ bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_MmetaMLST -U S
 #Run MetaMLST on a single sample
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d sepidermidis.db SRS015937_epidermidis.bam -o ./out/
+Executing: metamlst.py -d sepidermidis.db SRS015937_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
-../../metaMLST.py -d ../../metamlstDB_2017.db SRS015937_epidermidis.bam -o ./out/
+../../metamlst.py -d ../../metamlstDB_2017.db SRS015937_epidermidis.bam -o ./out/
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d sepidermidis.db SRS013261_epidermidis.bam -o ./out/
+Executing: metamlst.py -d sepidermidis.db SRS013261_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
 
-../../metaMLST.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
+../../metamlst.py -d ../../metamlstDB_2017.db SRS013261_epidermidis.bam -o ./out/
 
 #Type the STs
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d sepidermidis.db --meta test_metadata.txt ./out
+Executing: metamlst-merge.py -d sepidermidis.db --meta test_metadata.txt ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2017.db --meta test_metadata.txt ./out
+../../metamlst-merge.py -d ../../metamlstDB_2017.db --meta test_metadata.txt ./out
 
