@@ -26,10 +26,10 @@ unzip 5_phylogenetic_analysis_files.zip
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+Executing: metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+../../metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 
 for i in ./*.fastq; do
@@ -45,21 +45,21 @@ Executing: bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_Mme
   
   echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d ../../metamlstDB_2017.db "${bs%%.*}".bam --filter pacnes -o ./out/
+Executing: metamlst.py -d ../../metamlstDB_2017.db "${bs%%.*}".bam --filter pacnes -o ./out/
 -------------------------------------------------------------------------------
 " 
   #Run MetaMLST
-  ../../metaMLST.py -d ../../metamlstDB_2017.db ${bs%%.*}.bam --filter pacnes -o ./out/
+  ../../metamlst.py -d ../../metamlstDB_2017.db ${bs%%.*}.bam --filter pacnes -o ./out/
 done
 
 
 #Type the STs
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db --meta test_metadata.txt ./out
+Executing: metamlst-merge.py -d ../../metamlstDB_2017.db --meta test_metadata.txt ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2017.db --meta sample_metadata.txt --outseqformat A ./out
+../../metamlst-merge.py -d ../../metamlstDB_2017.db --meta sample_metadata.txt --outseqformat A ./out
 
 
 

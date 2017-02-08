@@ -42,10 +42,10 @@ Output    : - Report files (first pass):
 #Generate a Bowtie2 index
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+Executing: metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
+../../metamlst-index.py -i bowtie_MmetaMLST ../../metamlstDB_2017.db
 
 #Map the fastq with Bowtie
 echo "
@@ -59,35 +59,35 @@ bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x bowtie_MmetaMLST -U S
 #Run MetaMLST on a single sample
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d sepidermidis.db SRS015937_epidermidis.bam -o ./out/
+Executing: metamlst.py -d sepidermidis.db SRS015937_epidermidis.bam -o ./out/
 -------------------------------------------------------------------------------
 "
-../../metaMLST.py -d ../../metamlstDB_2017.db SRS015937_epidermidis.bam -o ./out/
+../../metamlst.py -d ../../metamlstDB_2017.db SRS015937_epidermidis.bam -o ./out/
 
 #Type the STs
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
+Executing: metamlst-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
+../../metamlst-merge.py -d ../../metamlstDB_2017.db --outseqformat B+ ./out
  
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py-s out/sepidermidis_sequences.fna -t out/sepidermidis_ST.txt new_metamlstDB.db
+Executing: metamlst-index.py-s out/sepidermidis_sequences.fna -t out/sepidermidis_ST.txt new_metamlstDB.db
 -------------------------------------------------------------------------------
 "
 echo "#sepidermidis|Staphylococcus epidermidis" > out/merged/update_sepidermidis_ST.txt
 cat out/merged/sepidermidis_ST.txt >> out/merged/update_sepidermidis_ST.txt
-../../metaMLST-index.py -s out/merged/sepidermidis_sequences.fna -t out/merged/update_sepidermidis_ST.txt new_metamlstDB.db
+../../metamlst-index.py -s out/merged/sepidermidis_sequences.fna -t out/merged/update_sepidermidis_ST.txt new_metamlstDB.db
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-index.py -i new_bowtie_MmetaMLST new_metamlstDB.db
+Executing: metamlst-index.py -i new_bowtie_MmetaMLST new_metamlstDB.db
 -------------------------------------------------------------------------------
 "
-../../metaMLST-index.py -i new_bowtie_MmetaMLST new_metamlstDB.db
+../../metamlst-index.py -i new_bowtie_MmetaMLST new_metamlstDB.db
 
 echo "
 -------------------------------------------------------------------------------
@@ -98,14 +98,14 @@ bowtie2 --threads 4 --very-sensitive-local -a --no-unal -x new_bowtie_MmetaMLST 
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST.py -d new_metamlstDB.db SRS015937_epidermidis.bam -o ./NEW_out/
+Executing: metamlst.py -d new_metamlstDB.db SRS015937_epidermidis.bam -o ./NEW_out/
 -------------------------------------------------------------------------------
 "
-../../metaMLST.py -d new_metamlstDB.db SRS015937_epidermidis.bam -o ./NEW_out/
+../../metamlst.py -d new_metamlstDB.db SRS015937_epidermidis.bam -o ./NEW_out/
 
 echo "
 -------------------------------------------------------------------------------
-Executing: metaMLST-merge.py -d new_metamlstDB.db ./NEW_out
+Executing: metamlst-merge.py -d new_metamlstDB.db ./NEW_out
 -------------------------------------------------------------------------------
 "
-../../metaMLST-merge.py -d new_metamlstDB.db ./NEW_out
+../../metamlst-merge.py -d new_metamlstDB.db ./NEW_out
