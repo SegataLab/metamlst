@@ -5,7 +5,7 @@ __version__ = '0.2'
 __date__ = '30 January 2015'
 
 
-import sys,os,subprocess,argparse
+import sys,os,subprocess,argparse,os
 
 from metaMLST_functions import *
 
@@ -37,34 +37,26 @@ except ImportError:
     sys.exit(1)
   
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
-
-parser.add_argument("--files", help="Input files (can be a folder)",default="")
-parser.add_argument("-d","--database", help="MLST database path", default="bsb.db")
-parser.add_argument("-w","--work", help="Output files will be placed in this folder (default: ./ )", default='.')
+parser.add_argument("files", help="Input file (can be a folder)",default="")
+parser.add_argument("-d","--database", help="MLST database path", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
+parser.add_argument("-w","--work", help="Output files will be placed in this folder. By default the current folder is used (./) ", default='.')
 parser.add_argument("--silent", help="No output on stdin", action="store_true")
 parser.add_argument("--min_pident", help="Minimum percentage of identity to the reference for each each BLAST to be consideretd (default: 90)", default=90.0, type=float)
 parser.add_argument("--min_length", help="Minimum percentage of gene-coverage for each BLAST alignment to be considered (default: 90)", default=90.0, type=float)
-parser.add_argument("--blastdb_prefix", help="Prefix of alternative blast db")
-parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
-parser.add_argument("--profile", help="MLST key (e.g. ecoli). To see all the available profiles use --listkeys", default="")
+parser.add_argument("--blastdb_prefix", help="Overrides the creation of a BLASTDB, and use a custom one")
+parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the available profiles use '?' as profile", default="")
 args=parser.parse_args()
- 
-masterLog = open(args.work+'/data_'+args.profile+'.txt','w') 
 
 metaMLSTDB = metaMLST_db(args.database)
 
-
-
-
-
-if args.listkeys:
+if args.profile=='?':
 	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
 	print '-'*65
 	for key,label in metaMLSTDB.getOrganisms().items():
 		print key.ljust(30)+(' ')*5+label.ljust(30)
 	sys.exit(0)
 
-
+masterLog = open(args.work+'/data_'+args.profile+'.txt','w')
 
 if not args.blastdb_prefix: #if no index, create
 		
@@ -81,9 +73,9 @@ masterLog.write('SAMPLE\tBACTERIUM\tST\tST_ACCURACY\t'+'\t'.join([k+'\t'+k+'_per
 
 if not args.silent:
 	print bcolors.OKGREEN+"Long/Exact Match"+bcolors.ENDC+'\t No SNPs: perfect match'
-	print bcolors.WARNING+"Short/Exact Match "+bcolors.ENDC+'\t No SNPs, part of gene covered  (report closest)'
-	print bcolors.OKBLUE+"Long/Partial Match"+bcolors.ENDC+'\t Some SNPs, whole gene covered (report closest)'
-	print bcolors.RED+"Short/Partial Match"+bcolors.ENDC+'\t Some SNPs, part of gene covered (report closest)\n\n'
+	print bcolors.WARNING+"Short/Exact Match "+bcolors.ENDC+'\t No SNPs, part of locus is covered  (report closest)'
+	print bcolors.OKBLUE+"Long/Partial Match"+bcolors.ENDC+'\t Some SNPs, whole locus is covered (report closest)'
+	print bcolors.RED+"Short/Partial Match"+bcolors.ENDC+'\t Some SNPs, part of locus is covered (report closest)\n\n'
 
 prefix = ''
 if os.path.isdir(args.files):
@@ -144,9 +136,7 @@ for file in subFiles:
 			qSeq = qSeq.reverse_complement()
 			qstart,qend = qend,qstart 
 		   
-		dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend),IUPAC.unambiguous_dna),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')
-		
-		
+		dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend),IUPAC.unambiguous_dna),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')		
 		
 		#Correct Len, Perfect match			GREEN
 		#Correct Len, Non-perfect match		YELLOW 
@@ -185,7 +175,7 @@ for file in subFiles:
 			af = open(args.work+'/'+os.path.basename(file).replace('.fna','')+'.nfo','a') 
 			af.write( args.profile+'\t'+os.path.basename(file)+'\t'+'\t'.join([str(allelicElement['target'])+'::'+(str(allelicElement['sequence'].seq) if ( float(allelicElement['leng'])/float(allelicElement['slen']) * float(allelicElement['perc']) != 100.0 ) else '')+'::'+'100.0::0.0' for allKey,allelicElement in sorted(allelic.items()) if allelicElement != {}])+'\r\n')
 			af.close()	
-			print os.path.basename(file)+'\t'+profileID+'\t'+profileScore
+			#print os.path.basename(file)+'\t'+profileID+'\t'+profileScore
 			
 	
 	
