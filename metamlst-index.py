@@ -182,7 +182,6 @@ if args.typings or args.sequences:
 						profilesLoaded +=1
 						for element in recIDs:
 							profilesQuery.append((organism,data[0],element))
-					else: print "DDD"
 			if profilesLoaded>0:
 				cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))				
 
