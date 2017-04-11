@@ -31,7 +31,6 @@ parser.add_argument("-o", metavar="OUTPUT FOLDER", help="Output Folder (default:
 parser.add_argument("-d", metavar="DB PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", required=True)
 
 parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
-
 parser.add_argument("--penalty", metavar="PENALTY", help="MetaMLST penaty for under-represented alleles", default=100, type=int)
 parser.add_argument("--minscore", metavar="MINSCORE", help="Minimum alignment score for each alignment to be considered valid", default=80, type=int)
 parser.add_argument("--max_xM", metavar="XM", help="Maximum SNPs rate for each alignment to be considered valid (BowTie2s XM value)", default=5, type=int)
@@ -211,6 +210,8 @@ for speciesKey,species in cel.items():
 			
 		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
 		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug)
+		
+		
 		
 		newProfile = 0
 		finWrite = 1

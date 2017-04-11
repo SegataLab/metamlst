@@ -1,4 +1,5 @@
-import json, math,sqlite3,itertools,subprocess,time,gc,argparse, re, os,sys
+import json, math,sqlite3,itertools,subprocess,time,gc,argparse, re, os,sys,pkgutil,importlib
+
 from StringIO import StringIO
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -120,10 +121,91 @@ def stringDiff(s1,s2):
 		if a!=b: c+=1
 	return c 
 
-
 def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode):
 
+ 	if pkgutil.find_loader('pysam') is not None:
+ 		import pysam
+ 		print "PYSAM"
+	else:
+		print "LEGACY"	
+		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode)
+
+
+	seqRec = []
+ 	chromosomes = {}
+
+	subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
+	pysam.index(bamFile+'.sorted')
 	
+	samfile = pysam.AlignmentFile(bamFile+'.sorted', "rb")
+	chromosomesLen = dict((r,l) for r,l in zip(samfile.references,samfile.lengths))
+
+	for chre in chromosomeList.keys():
+		
+		chromosomes[chre] = {}
+
+		for pileupcolumn in samfile.pileup(chre,stepper='nofilter'):
+			ldict = {'A':0,'T':0,'C':0,'G':0}
+			#otherBases = {}			
+
+			for pileupread in pileupcolumn.pileups:
+				if not pileupread.is_del and not pileupread.is_refskip:
+					base = pileupread.alignment.query_sequence[pileupread.query_position]
+					
+					if int(pileupread.alignment.get_tag('AS')) >= filterScore and int(pileupread.alignment.get_tag('XM')) <= max_xM: 
+						
+						if base in ldict.keys(): ldict[base]+=1
+					#else otherBases.append(pileupread.alignment.query_sequence[pileupread.query_position])
+
+			#print chre,pileupcolumn.pos+1,ldict
+			chromosomes[chre][pileupcolumn.pos+1] = max(ldict, key=ldict.get)
+
+	
+	for chromo,nucleots in chromosomes.items(): 
+		sys.stdout.flush()
+
+		sequen = ""
+		lastSet = 0
+
+		for key,nucleotide in sorted(nucleots.items(), key=lambda x : x[0]):
+			if lastSet+1 != key:
+				sequen = sequen + "N" * (key-(lastSet+1))
+			lastSet = key
+			sequen = sequen + nucleotide
+			
+		sequen+=((chromosomesLen[chromo]-len(sequen))*"N")
+		
+		rSequen = list(sequen)
+		dbSequen = chromosomeList[chromo] 
+		
+		i=0
+		cIndex=0
+		SNPs=0 
+		
+		
+		for chr in rSequen:
+			if chr == 'N':
+				rSequen[i] = dbSequen[i].lower()
+				cIndex+=1
+				
+			elif rSequen[i] != dbSequen[i]: 
+				rSequen[i] = rSequen[i]
+				SNPs+=1
+			i+=1
+		sequen = ''.join(rSequen)
+		
+			
+		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+	print '\r',
+
+
+	samfile.close()
+	os.unlink(bamFile+'.sorted')
+	#seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+	
+	return seqRec
+def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode):
+
 	chromosomes = {}
 	chromosomesLen = {}
 
@@ -199,7 +281,6 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode):
 			
 			elif chr.upper() in ldict: 
 				ldict[chr.upper()] += 1
-			
 			
 		chromosomes[chromosome][nucleotide] = max(ldict, key=ldict.get)
 	
