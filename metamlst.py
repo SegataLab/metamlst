@@ -173,10 +173,10 @@ for speciesKey,species in cel.items():
 		tVar[sk] = 1
 	vals = sum([t for t in tVar.values()]) 
 	
-	
-	if not args.quiet: print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.nloci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
-	if len([ta for ta in tVar.items() if v == 0]) > 0: print (' '*20)+'Missing Loci : '+', '.join([bcolors.FAIL + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 0])
-	if not args.quiet: print ""
+	if not args.quiet: 
+		print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.nloci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
+		if len([ta for ta in tVar.items() if v == 0]) > 0: print (' '*20)+'Missing Loci : '+', '.join([bcolors.FAIL + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 0])
+		print ""
 	
 	if int((float(vals)/float(len(tVar)))*100) >= args.nloci:
 	
