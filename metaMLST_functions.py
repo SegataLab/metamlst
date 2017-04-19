@@ -134,8 +134,8 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted
 
 	if not presorted:
 		subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
-		samfile = pysam.AlignmentFile(bamFile+'.sorted', "rb")
 		pysam.index(bamFile+'.sorted')
+		samfile = pysam.AlignmentFile(bamFile+'.sorted', "rb")
 	else:
 		pysam.index(bamFile)
 		samfile = pysam.AlignmentFile(bamFile, "rb")
