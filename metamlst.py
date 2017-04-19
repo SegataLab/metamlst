@@ -70,6 +70,7 @@ cel = {}
 sequenceBank = {}
 ignoredReads = 0
 totalReads = 0
+glob_bamFile_sorted=False
 
 fileName = (args.BAMFILE.split('/'))[-1].split('.')[0] if args.BAMFILE != '' else 'STDIN_'+str(int(time.time()))
 
@@ -208,10 +209,14 @@ for speciesKey,species in cel.items():
 		
 		sampleSequence = '' #for organism
 		
-		if not args.quiet: metamlst_print("Building Consensous Sequences",'...',bcolors.HEADER)
-			
+		if not args.quiet: metamlst_print("Building Consensus Sequences",'...',bcolors.HEADER)
+		
+		if not args.presorted and not glob_bamFile_sorted:
+			sort_index(args.BAMFILE)
+			glob_bamFile_sorted=True
+
 		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
-		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug,args.presorted)
+		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug)
 		
 		
 		
