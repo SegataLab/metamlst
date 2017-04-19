@@ -121,6 +121,12 @@ def stringDiff(s1,s2):
 		if a!=b: c+=1
 	return c 
 
+
+def sort_index(bamFile):
+	subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
+	os.rename(bamFile+'.sorted',bamFile)
+	subprocess.call(['samtools','index',bamFile])
+
 def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted=False):
 
  	if pkgutil.find_loader('pysam') is not None:
@@ -132,13 +138,7 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted
 	seqRec = []
  	chromosomes = {}
 
-	if not presorted:
-		subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
-		pysam.index(bamFile+'.sorted')
-		samfile = pysam.AlignmentFile(bamFile+'.sorted', "rb")
-	else:
-		pysam.index(bamFile)
-		samfile = pysam.AlignmentFile(bamFile, "rb")
+	samfile = pysam.AlignmentFile(bamFile, "rb")
 
 	chromosomesLen = dict((r,l) for r,l in zip(samfile.references,samfile.lengths))
 
@@ -202,7 +202,6 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted
 
 
 	samfile.close()
-	if not presorted: os.unlink(bamFile+'.sorted')
 	#seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 	
 	return seqRec
