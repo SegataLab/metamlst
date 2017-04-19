@@ -261,5 +261,5 @@ for speciesKey,species in cel.items():
  
 MetaMLSTDBconn.close() 
 
-if len(cel) and not args.quiet: : print '\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m'
+if len(cel) and not args.quiet: print '\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m'
 
