@@ -37,6 +37,7 @@ parser.add_argument("--max_xM", metavar="XM", help="Maximum SNPs rate for each a
 parser.add_argument("--min_read_len", metavar="LENGTH", help="Minimum BowTie2 alignment length", default=50, type=int)
 parser.add_argument("--min_accuracy", metavar="CONFIDENCE", help="Minimum threshold on Confidence score (percentage) to pass the reconstruction step", default=0.90, type=float)
 parser.add_argument("--debug", help="Debug Mode", action='store_true', default=False) 
+parser.add_argument("--presorted", help="The input BAM file is sorted and indexed with samtools. If set, MetaMLST skips this step", action='store_true') 
 
 parser.add_argument("--nloci", metavar="NLOCI", help="Do not discard samples where at least NLOCI (percent) are detected. This can lead to imperfect MLST typing", default=100, type=int)
 parser.add_argument("--log", help="generate logfiles", action="store_true") 
@@ -209,7 +210,7 @@ for speciesKey,species in cel.items():
 		metamlst_print("Building Consensous Sequences",'...',bcolors.HEADER)
 			
 		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
-		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug)
+		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug,args.presorted)
 		
 		
 		
