@@ -38,6 +38,7 @@ parser.add_argument("--min_read_len", metavar="LENGTH", help="Minimum BowTie2 al
 parser.add_argument("--min_accuracy", metavar="CONFIDENCE", help="Minimum threshold on Confidence score (percentage) to pass the reconstruction step", default=0.90, type=float)
 parser.add_argument("--debug", help="Debug Mode", action='store_true', default=False) 
 parser.add_argument("--presorted", help="The input BAM file is sorted and indexed with samtools. If set, MetaMLST skips this step", action='store_true') 
+parser.add_argument("--quiet", help="Suppress text output", action='store_true') 
 
 parser.add_argument("--nloci", metavar="NLOCI", help="Do not discard samples where at least NLOCI (percent) are detected. This can lead to imperfect MLST typing", default=100, type=int)
 parser.add_argument("--log", help="generate logfiles", action="store_true") 
@@ -155,7 +156,7 @@ if args.log:
 	dfil.close()	
 
  
-print '\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(80,'-')+bcolors.ENDC
+if not args.quiet: print '\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(80,'-')+bcolors.ENDC
 
 for speciesKey,species in cel.items():
 	
@@ -165,7 +166,7 @@ for speciesKey,species in cel.items():
 	#GENE PRESENCE 
 	
 	if len(tVar) < len(species.keys()):
-		print 'Database is broken for' +speciesKey+bcolors.FAIL+'[ - EXITING - ]'.rjust(75,' ')+bcolors.ENDC
+		if not args.quiet: print 'Database is broken for' +speciesKey+bcolors.FAIL+'[ - EXITING - ]'.rjust(75,' ')+bcolors.ENDC
 		sys.exit(0)
 	
 	for sk in species.keys():
@@ -173,15 +174,15 @@ for speciesKey,species in cel.items():
 	vals = sum([t for t in tVar.values()]) 
 	
 	
-	print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.nloci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
+	if not args.quiet: print ((bcolors.OKGREEN if (int((float(vals)/float(len(tVar)))*100) >= args.nloci) else bcolors.FAIL)+' '+speciesKey.ljust(18,' ')+bcolors.ENDC)+' Detected Loci: '+', '.join([bcolors.OKGREEN + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 1])
 	if len([ta for ta in tVar.items() if v == 0]) > 0: print (' '*20)+'Missing Loci : '+', '.join([bcolors.FAIL + sk + bcolors.ENDC for (sk,v) in sorted(tVar.items(), key = lambda x:x[0]) if v == 0])
-	print ""
+	if not args.quiet: print ""
 	
 	if int((float(vals)/float(len(tVar)))*100) >= args.nloci:
 	
-		metamlst_print("Closest allele identification",'...',bcolors.HEADER)
+		if not args.quiet: metamlst_print("Closest allele identification",'...',bcolors.HEADER)
 
-		print "\r\n  "+"Locus".ljust(7)+"Avg. Coverage".rjust(15)+"Score".rjust(7)+"Hits".rjust(6)+" Reference Allele(s)".ljust(36)
+		if not args.quiet: print "\r\n  "+"Locus".ljust(7)+"Avg. Coverage".rjust(15)+"Score".rjust(7)+"Hits".rjust(6)+" Reference Allele(s)".ljust(36)
 		sys.stdout.flush()
 		
 		for geneKey, geneInfo in sorted(species.items(),key=lambda x:x[0]): #loci
@@ -201,13 +202,13 @@ for speciesKey,species in cel.items():
 
 			coverage = sum([x for x in sequenceBank[sequenceKey].values()])
 
-			print "  "+bcolors.WARNING+geneKey.ljust(7)+bcolors.ENDC+str(round(float(coverage)/float(genL),2)).rjust(15)+bcolors.ENDC+bcolors.HEADER+str(minValue).rjust(7)+str(aElements.itervalues().next()[1]).rjust(6)+bcolors.ENDC+bcolors.OKBLUE,closeAllelesList.ljust(36)+bcolors.ENDC
-		print ""
+			if not args.quiet: print "  "+bcolors.WARNING+geneKey.ljust(7)+bcolors.ENDC+str(round(float(coverage)/float(genL),2)).rjust(15)+bcolors.ENDC+bcolors.HEADER+str(minValue).rjust(7)+str(aElements.itervalues().next()[1]).rjust(6)+bcolors.ENDC+bcolors.OKBLUE,closeAllelesList.ljust(36)+bcolors.ENDC
+		if not args.quiet: print ""
 		sys.stdout.flush()		
 		
 		sampleSequence = '' #for organism
 		
-		metamlst_print("Building Consensous Sequences",'...',bcolors.HEADER)
+		if not args.quiet: metamlst_print("Building Consensous Sequences",'...',bcolors.HEADER)
 			
 		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(MetaMLSTDBconn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
 		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug,args.presorted)
@@ -216,7 +217,7 @@ for speciesKey,species in cel.items():
 		
 		newProfile = 0
 		finWrite = 1
-		print "\r\n  "+"Locus".ljust(7)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(7)+"Confidence".rjust(15)+"Notes".rjust(10)
+		if not args.quiet: print "\r\n  "+"Locus".ljust(7)+"Ref.".ljust(7)+"Length".rjust(7)+"Ns".rjust(7)+"SNPs".rjust(7)+"Confidence".rjust(15)+"Notes".rjust(10)
 		for l in sorted(consenSeq, key= lambda x: x.id):
 			holes = str(l.description.split('_')[0].split('::')[1])
 			snps = int(l.description.split('_')[1].split('::')[1])
@@ -238,21 +239,21 @@ for speciesKey,species in cel.items():
 				newAllele = '--'
 				if not args.a: l.seq = ''
 			
-			print "  "+bcolors.WARNING+(l.id.split('_')[1]).ljust(7)+bcolors.ENDC+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(15)+newAllele.rjust(10)
+			if not args.quiet: print "  "+bcolors.WARNING+(l.id.split('_')[1]).ljust(7)+bcolors.ENDC+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(15)+newAllele.rjust(10)
 			
 		
-		print ''
+		if not args.quiet: print ''
 		 
 		
 		if finWrite:
 			
-			metamlst_print("Reconstruction Successful",'WRITE',bcolors.OKGREEN)
+			if not args.quiet: metamlst_print("Reconstruction Successful",'WRITE',bcolors.OKGREEN)
 			profil = open(workUnit+'/'+fileName+'.nfo','a')	 
 			profil.write(speciesKey+'\t'+fileName+'\t'+"\t".join([recd.id+"::"+str(recd.seq)+'::'+str(round(1-float(recd.description.split('_')[0].split('::')[1])/float(recd.seqLen),4)*100)+'::'+str(round(float(recd.description.split('_')[1].split('::')[1])/float(recd.seqLen),4)*100) for recd in consenSeq])+'\r\n')
 			
 			profil.close()
 		else:
-			metamlst_print("Accuracy lower than "+str(round(args.min_accuracy*100,2))+'%','SKIP',bcolors.FAIL) 
+			if not args.quiet: metamlst_print("Accuracy lower than "+str(round(args.min_accuracy*100,2))+'%','SKIP',bcolors.FAIL) 
 		
 	del cel[speciesKey]
 	gc.collect()
@@ -260,5 +261,5 @@ for speciesKey,species in cel.items():
  
 MetaMLSTDBconn.close() 
 
-if len(cel): print '\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m'
+if len(cel) and not args.quiet: : print '\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m'
 
