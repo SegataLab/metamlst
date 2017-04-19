@@ -134,9 +134,12 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted
 
 	if not presorted:
 		subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
-		pysam.index(bamFile+'.sorted')
 		samfile = pysam.AlignmentFile(bamFile+'.sorted', "rb")
-	else: samfile = pysam.AlignmentFile(bamFile, "rb")
+		pysam.index(bamFile+'.sorted')
+	else:
+		pysam.index(bamFile)
+		samfile = pysam.AlignmentFile(bamFile, "rb")
+
 	chromosomesLen = dict((r,l) for r,l in zip(samfile.references,samfile.lengths))
 
 	for chre in chromosomeList.keys():
