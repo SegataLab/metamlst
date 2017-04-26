@@ -6,6 +6,19 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 
+#!/usr/bin/env python
+
+__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
+__version__ = '1.1'
+__date__ = '26 April 2017'
+
+
+def print_version():
+	print "Version:\t"+__version__
+	print "Author:\t\t"+__author__
+	print "Reference:\t"+'MetaMLST: multi-locus strain-level bacterial typing from metagenomic samples\n\t\tNucleic Acids Research, 2016\n\t\tDOI: 10.1093/nar/gkw837'
+	sys.exit(0)
+
 def metamlst_print(mesg,label,type,reline=False,newLine=False):
 	opening = "\r" if reline else ''
 	ending = "\r\n" if not reline or newLine else ''
@@ -27,8 +40,6 @@ def metamlst_print(mesg,label,type,reline=False,newLine=False):
 				c = c+len(word)+2
 				wds.append(word)
 		sys.stdout.write(opening+(' '.join(wds)).ljust(66)+(type+'[ - '+label.center(5)+' - ]'+bcolors.ENDC).ljust(14)+ending)
-
-
 
 	sys.stdout.flush()
 
@@ -101,7 +112,6 @@ def defineProfile(conn,geneList):
 			recs.append(str(result['recID']))
 
 	return [(row['profileCode'],int((float(row['T'])/float(len(recs)))*100)) for row in e.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC")] if result else [(0,0)]
-	
 
 def sequenceLocate(conn,bacterium,sequence):
 	
@@ -122,19 +132,28 @@ def stringDiff(s1,s2):
 	return c 
 
 
-def sort_index(bamFile):
-	subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
-	os.rename(bamFile+'.sorted',bamFile)
+def sort_index(bamFile,legacy=False):
+	if legacy:
+
+		subprocess.call(['samtools','sort',bamFile,bamFile+'.s'])
+		os.rename(bamFile+'.s.bam',bamFile)
+
+	else:
+		subprocess.call(['samtools','sort',bamFile,'-o',bamFile+'.sorted'])
+		os.rename(bamFile+'.sorted',bamFile)
+	
 	subprocess.call(['samtools','index',bamFile])
 
-def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted=False):
+def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=False):
+
+	if legacy: metamlst_print('Samtools < 1.x legacy mode enabled','...',bcolors.HEADER)
 
  	if pkgutil.find_loader('pysam') is not None:
  		import pysam
 	else:
-		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode)
+		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=legacy)
 
-
+	if not os.path.isfile(bamFile+'.bai'): pysam.index(bamFile)
 	seqRec = []
  	chromosomes = {}
 
@@ -205,11 +224,12 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,presorted
 	#seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 	
 	return seqRec
-def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode):
+def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=False):
 
 	chromosomes = {}
 	chromosomesLen = {}
-
+	
+	metamlst_print('Pysam not detected: using legacy mode','...',bcolors.HEADER)
 	strr=''
 	filterSpec = chromosomeList.keys()[0].split('_')[0].strip()
 	
@@ -248,7 +268,10 @@ def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode):
 	
 	
 	devnull = open('/dev/null', 'w')
-	child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
+	
+	if legacy_samtools: child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
+	else: child = subprocess.Popen("samtools view -bS - | samtools sort -o - - | samtools mpileup - ",shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,stderr = devnull)
+
 	out = StringIO(child.communicate(strr)[0]) 
 	
 	if debugMode: print out.getvalue() 
@@ -396,4 +419,3 @@ class metaMLST_db:
 			if result: recs.append(str(result['recID']))
 		
 		return [(row['profileCode'],int((float(row['T'])/float(len(recs)))*100)) for row in self.cursor.execute("SELECT profileCode, COUNT(*) as T FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode HAVING T = (SELECT COUNT(*)  FROM profiles WHERE alleleCode IN ("+','.join(recs)+") GROUP BY profileCode ORDER BY COUNT(*) DESC LIMIT 1) ORDER BY T DESC")] if result else [(0,0)]
-		

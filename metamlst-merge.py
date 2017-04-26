@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 try: 
 	import math
 	import sqlite3
@@ -46,9 +47,10 @@ B+ : Single loci (All loci)\r\n\
 C  : CSV STs Table [default]")
 parser.add_argument("-j", metavar="subjectID,diet,age...", help="Embed a LIST of metadata in the the output sequences (A or A+ outseqformat modes). Requires a comma separated list of field names from the metadata file specified with --meta")
 parser.add_argument("--jgroup", help="Group the output sequences (A or A+ outseqformat modes) by ST, rather than by sample. Requires -j", action="store_true")
+parser.add_argument("--version", help="Prints version informations", action='store_true')
 
 args=parser.parse_args()
-
+if args.version: print_version()
 try:
 	conn = sqlite3.connect(args.d)
 except IOError: 
@@ -273,25 +275,22 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	#ISOLATES FILE OUTPUT 
 	isolafil = open(args.folder+'/merged/'+bacterium+'_report.txt','w') 
 	identifiers = {}
-	p1line = 0
+	p1line = False
 	keys=[]
 
 	
 	if args.meta:
-
 		for line in open(args.meta):
-		      if line == '': continue
-		      if not p1line: 
-			      p1line=1
-			      keys = [str(x).strip() for x in line.split('\t')]
-			      metadataJoinField = keys[args.idField]
-		      else:
-			      l = line.strip().split('\t') 
-			      if len(l) == len(keys):
+			if line == '': continue
+			if not p1line:
+				p1line=True
+				keys = [str(x).strip() for x in line.split('\t')]
+				metadataJoinField = keys[args.idField]
+			else:
+				l = line.strip().split('\t') 
+				if len(l) == len(keys): identifiers[l[args.idField]] = dict((keys[i],l[i]) for i in range(0,len(keys))) 
+				else: metamlst_print("Warning: some metadata fields are empty, please provide a suitable metadata file ",'!',bcolors.WARNING)
 
-				  identifiers[l[args.idField]] = dict((keys[i],l[i]) for i in range(0,len(keys)))  
-				  
-	
 	isolafil.write('ST\tConfidence\t'+'\t'.join(keys)+'\n')
 	
 	
@@ -312,11 +311,11 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			STmapper[profileST].append(identifiers[sampleName])
 			
 		else: 
+			if args.meta: metamlst_print("Warning: "+sampleName+' is not in metadata file','!',bcolors.WARNING)
 			isolafil.write(str(profileST)+'\t'+str(round(meanAccur,2))+'\t'+str(sampleName)+'\n')
 			
 			#if args.j: STmapper[profileST] = dict((virtKey,'-') for virtKey in args.j)
 			STmapper[profileST].append({'sampleID':sampleName})
-			
 	isolafil.close()
 		
 	
@@ -341,8 +340,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 					
 		if args.outseqformat == 'B+':
 			SeqIO.write(sorted( list(itertools.chain(*preaLignTable.values()))  ,key=lambda x: x.id),args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")	
-			
-				
+							
 		if args.outseqformat == 'C':
 			
 			seqfile = open(args.folder+'/merged/'+bacterium+'_sequences.txt','w')
@@ -473,7 +471,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			
 			SeqIO.write(phyloSeq,args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")
 
-print "Color Legend:\n"+"-"*80
+print "Colour Legend:\n"+"-"*80
 print "Alleles:"+'\t'+"[Known]"+'\t'+bcolors.OKBLUE+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW-RECURRING]"+bcolors.ENDC
 print "Profiles:"+'\t'+bcolors.FAIL+"[Known]"+bcolors.ENDC+'\t'+bcolors.WARNING+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW*]"+bcolors.ENDC
 print "New* profiles are composed by Known and Recurring alleles only"
