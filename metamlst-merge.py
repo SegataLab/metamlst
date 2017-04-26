@@ -50,7 +50,15 @@ parser.add_argument("--jgroup", help="Group the output sequences (A or A+ outseq
 parser.add_argument("--version", help="Prints version informations", action='store_true')
 
 args=parser.parse_args()
-if args.version: print_version()
+if args.version:
+	print_version()
+	sys.exit(0)
+
+if not os.path.isfile(args.d): 
+	metamlst_print('Unable to access '+args.d,'FAIL',bcolors.FAIL)
+	sys.exit(1)
+
+
 try:
 	conn = sqlite3.connect(args.d)
 except IOError: 
