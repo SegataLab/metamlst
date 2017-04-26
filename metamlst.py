@@ -53,7 +53,9 @@ args=parser.parse_args()
 
 
 if args.version: print_version()
-
+if not args.BAMFILE:
+	parser.print_help()
+	sys.exit(0)
 #PREPARE 
 try:
 	MetaMLSTDBconn = sqlite3.connect(args.d)
@@ -68,7 +70,7 @@ except IOError:
 
 try:
 	fil = open(args.BAMFILE,'r')
-except IOError as e: 
+except:
 	metamlst_print('Unable to open the BAM file for reading: please check the path is correct','FAIL',bcolors.FAIL)
 	sys.exit(1)
 
@@ -150,9 +152,9 @@ for speciesKey,species in cel.items():
 if args.log:
 	dfil = open(workUnit+'/'+fileName+'_'+str(int(time.time()))+'.out','w')
 	dfil.write("SAMPLE:\t\t\t\t\t"+args.BAMFILE+'\r\n')
+	dfil.write("VERSION:\t\t\t\t\t1.1\r\n")
 	dfil.write("PENALTY:\t\t\t\t"+repr(args.penalty)+'\r\n')
 	dfil.write("MIN-THRESHOLD SCORE:\t\t\t\t"+repr(args.minscore)+'\r\n')
-	
 	dfil.write("TOTAL ALIGNED READS:\t\t\t\t"+repr(totalReads)+'\r\n')
 	dfil.write(" - OF WHICH IGNORED:\t\t\t\t"+repr(ignoredReads)+' BAM READS\r\n\r\n------------------------------  RESULTS ------------------------------\r\n')
 

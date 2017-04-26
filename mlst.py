@@ -32,7 +32,7 @@ except ImportError:
     sys.exit(1)
   
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
-parser.add_argument("files", help="Input file (can be a folder)",default="",nargs='*')
+parser.add_argument("files", help="Input file (can be a folder)",default="",nargs='?')
 parser.add_argument("-d","--database", help="MLST database path", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
 parser.add_argument("-w","--work", help="Output files will be placed in this folder. By default the current folder is used (./) ", default='.')
 parser.add_argument("--quiet", help="No output on stdin", action="store_true")
@@ -44,7 +44,10 @@ parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the avail
 args=parser.parse_args()
 
 if args.version: print_version()
-	
+if args.files == '':
+	parser.print_help()
+	sys.exit(0)
+
 metaMLSTDB = metaMLST_db(args.database)
 
 if args.profile=='?':
@@ -69,7 +72,7 @@ if not args.blastdb_prefix: #if no index, create
 profileKeys=metaMLSTDB.getGeneNames(args.profile)
 masterLog.write('SAMPLE\tBACTERIUM\tST\tST_ACCURACY\t'+'\t'.join([k+'\t'+k+'_perc_iden\t'+k+'_len_of_gene\t'+k+'_len_aligned' for k in sorted(profileKeys)])+'\r\n')
 
-if not args.silent:
+if not args.quiet:
 	print bcolors.OKGREEN+"Long/Exact Match"+bcolors.ENDC+'\t No SNPs: perfect match'
 	print bcolors.WARNING+"Short/Exact Match "+bcolors.ENDC+'\t No SNPs, part of locus is covered  (report closest)'
 	print bcolors.OKBLUE+"Long/Partial Match"+bcolors.ENDC+'\t Some SNPs, whole locus is covered (report closest)'
