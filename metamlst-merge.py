@@ -33,8 +33,8 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 		description='Detects the MLST profiles from a collection of intermediate files from MetaMLST.py')
 
-parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files")
-parser.add_argument("-d", metavar="DB_PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", required=True)
+parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files",nargs='?')
+parser.add_argument("-d", metavar="DB_PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
 parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 parser.add_argument("-z", metavar="ED", help="Maximum Edit Distance from the closest reference to call a new MLST allele. Default: 5", default=5, type=int)
 
@@ -59,10 +59,18 @@ conn.row_factory = sqlite3.Row
 cursor = conn.cursor()
 
 
-		
 cel = {}
 
-if not os.path.isdir(args.folder+'/merged'): os.makedirs(args.folder+'/merged')
+if args.folder is None: 
+	parser.print_help()
+	sys.exit(0)
+
+try:
+	if not os.path.isdir(args.folder+'/merged'): os.makedirs(args.folder+'/merged')
+except IOError: 
+	print "IOError: unable to access "+args.folder+"!"
+
+
 
 #print defineProfile(conn,['ecoli_adk_10','ecoli_fumC_11','ecoli_gyrB_4','ecoli_icd_8','ecoli_mdh_8','ecoli_purA_8','ecoli_recA_2'])
 #print defineProfile(conn,['ecoli_adk_21','ecoli_fumC_35','ecoli_gyrB_27','ecoli_icd_6','ecoli_mdh_5','ecoli_purA_5','ecoli_recA_4'])
