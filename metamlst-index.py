@@ -30,10 +30,11 @@ parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta f
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
 parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
-parser.add_argument("database", metavar="DB_PATH", help="MetaMLST Database File (will create a new DB or update an existing one)")
+parser.add_argument("--version", help="Prints version informations", action='store_true')
+parser.add_argument("database", metavar="DB_PATH", help="MetaMLST Database File (will create a new DB or update an existing one)",nargs='?',default='metamlst_custom_db.db')
 
 args=parser.parse_args()
-
+if args.version: print_version()
 try:
 	conn = sqlite3.connect(args.database)
 	conn.row_factory = sqlite3.Row

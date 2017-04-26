@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 
-__author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '0.2'
-__date__ = '30 January 2015'
-
-
 import sys,os,subprocess,argparse,os
 
 from metaMLST_functions import *
@@ -37,16 +32,19 @@ except ImportError:
     sys.exit(1)
   
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
-parser.add_argument("files", help="Input file (can be a folder)",default="")
+parser.add_argument("files", help="Input file (can be a folder)",default="",nargs='*')
 parser.add_argument("-d","--database", help="MLST database path", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
 parser.add_argument("-w","--work", help="Output files will be placed in this folder. By default the current folder is used (./) ", default='.')
-parser.add_argument("--silent", help="No output on stdin", action="store_true")
+parser.add_argument("--quiet", help="No output on stdin", action="store_true")
 parser.add_argument("--min_pident", help="Minimum percentage of identity to the reference for each each BLAST to be consideretd (default: 90)", default=90.0, type=float)
 parser.add_argument("--min_length", help="Minimum percentage of gene-coverage for each BLAST alignment to be considered (default: 90)", default=90.0, type=float)
 parser.add_argument("--blastdb_prefix", help="Overrides the creation of a BLASTDB, and use a custom one")
-parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the available profiles use '?' as profile", default="")
+parser.add_argument("--version", help="Prints version informations", action='store_true')
+parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the available profiles use '?' as profile", default="",nargs='*')
 args=parser.parse_args()
 
+if args.version: print_version()
+	
 metaMLSTDB = metaMLST_db(args.database)
 
 if args.profile=='?':
@@ -178,8 +176,7 @@ for file in subFiles:
 			#print os.path.basename(file)+'\t'+profileID+'\t'+profileScore
 			
 	
-	
-	
+
 	#Output Phase
 	
 	synthFile = StringIO()
@@ -194,7 +191,7 @@ for file in subFiles:
 	of.write('\n\n#SEQUENCES\n\n'+synthFile.getvalue())
 	of.close()
 	
-	if not args.silent:
+	if not args.quiet:
 		print 'FILE'.ljust(15)+'|'.join([k.center(7) for k in sorted(profileKeys)])+'|'+'ST'.center(5)
 		print '-'*80
 		print os.path.basename(file)[:14].ljust(15)+'|'.join([ (allelic[k]['color'][0]+allelic[k]['allele'].center(7)+bcolors.ENDC) if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|'+(profileID+' ('+str(profileScore)+'%)').center(7)
