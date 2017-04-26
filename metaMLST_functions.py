@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json, math,sqlite3,itertools,subprocess,time,gc,argparse, re, os,sys,pkgutil,importlib
 
 from StringIO import StringIO
@@ -6,7 +8,6 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 
-#!/usr/bin/env python
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
 __version__ = '1.1'
