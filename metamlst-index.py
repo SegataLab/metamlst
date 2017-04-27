@@ -30,6 +30,7 @@ parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta f
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
 parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
+parser.add_argument("--filter", help="filters the db for a specific bacterium", default=None) 
 parser.add_argument("--version", help="Prints version informations", action='store_true')
 parser.add_argument("database", metavar="DB_PATH", help="MetaMLST Database File (will create a new DB or update an existing one)",nargs='?')
 
@@ -207,10 +208,10 @@ if args.typings or args.sequences:
 			metamlst_print('COMPLETED '+organism,'DONE',bcolors.OKGREEN)
 
 if args.dump_db:
-	dump_db_to_fasta(conn,args.dump_db)
+	dump_db_to_fasta(conn,args.dump_db,args.filter)
 	
 if args.buildindex:
-	dump_db_to_fasta(conn,'out.fa')
+	dump_db_to_fasta(conn,'out.fa',args.filter)
 
 	#print '  BUILDING INDEX'.ljust(60),
 	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
@@ -224,7 +225,7 @@ if args.buildindex:
 	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
 if args.buildblast:
 	
-	dump_db_to_fasta(conn,'out.fa')
+	dump_db_to_fasta(conn,'out.fa',args.filter)
 	
 	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 	sys.stdout.flush()
