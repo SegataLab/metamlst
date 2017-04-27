@@ -47,7 +47,7 @@ def metamlst_print(mesg,label,type,reline=False,newLine=False):
 def metamlst_newline():
 	sys.stdout.write('\r\n')
 
-def dump_db_to_fasta(conn,path):
+def dump_db_to_fasta(conn,path,filterb=None):
 	conn.row_factory = sqlite3.Row
 	cursor = conn.cursor() 
 	
@@ -55,7 +55,9 @@ def dump_db_to_fasta(conn,path):
 	metamlst_print("COLLECTING DATA...",'...',bcolors.ENDC)
 	sys.stdout.flush()
 	
-	strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
+	if filterb is None: strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
+	else: strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ?",(filterb,))]
+
 	SeqIO.write(strr,path,'fasta')
 	return len(strr)
 
