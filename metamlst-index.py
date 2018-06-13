@@ -1,9 +1,14 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python3
+
+from __future__ import print_function
 
 try:
 	import sys,os,subprocess,sqlite3,argparse,re
+	from metaMLST_functions import *
 except ImportError as e:
-	print "Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re"
+	print("Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re")
+	
+
 	sys.exit(1)
 
 try:
@@ -12,40 +17,52 @@ try:
 	from Bio.SeqRecord import SeqRecord
 	from Bio.Alphabet import IUPAC
 except ImportError as e:
-	print "Error while importing Biopython. Please check Biopython is installed properly on your system!"
+	print("Error while importing Biopython. Please check Biopython is installed properly on your system!")
 	sys.exit(1)
-	
-from metaMLST_functions import * 
+	   
 
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
 
- 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 		description='Builds and manages the MetaMLST SQLite Databases')
 
-
 parser.add_argument("-t", "--typings", help="Typings in TAB separated file (Build New Database)")
 parser.add_argument("-s", "--sequences", help="Sequences in FASTA format (comma separated list of files)")
-parser.add_argument("-q","--dump_db", help="Dumps the entire database to fasta file") 
-
+parser.add_argument("-q","--dump_db", help="Dump the entire database to file in fasta format)") 
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
-parser.add_argument("--listkeys", help="Lists all the MLST keys present in the database and exit", action="store_true") 
+
+parser.add_argument("-d",'--database', metavar="DB PATH", help="MetaMLST Database File (if unset, use the default database. If a file name is given, MetaMLST will create a new DB or update an existing one)", default=METAMLST_DBPATH)
+parser.add_argument("--list", help="Lists all the MLST keys present in the database and exit", action="store_true") 
 parser.add_argument("--filter", help="filters the db for a specific bacterium", default=None) 
 parser.add_argument("--version", help="Prints version informations", action='store_true')
-parser.add_argument("database", metavar="DB_PATH", help="MetaMLST Database File (will create a new DB or update an existing one)",nargs='?')
+
+parser.add_argument("--bowtie2_threads", help="Number of Threads to use with bowtie2-build",default=4) 
+parser.add_argument('--bowtie2_build', type=str, default='bowtie2-build',
+        help="Full path to the bowtie2-build command to use, deafult assumes "
+             "that 'bowtie2-build is present in the system path")
+
+#parser.add_argument("--help", help="Prints help message", action='store_true')
+
 
 args=parser.parse_args()
-if args.version: print_version()
+if args.version:
+	print_version()
+	sys.exit(0)
 if args.database is None:
+	print_version()
 	parser.print_help()
 	sys.exit(0)
 
-
-
 try:
-	conn = sqlite3.connect(args.database)
-	conn.row_factory = sqlite3.Row
-	cursor = conn.cursor() 
+	#download the database if a non existing (but default-named) DB file is passed
+	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
+		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2018.db', args.database)
+
+	metaMLSTDB = metaMLST_db(args.database)
+	conn = metaMLSTDB.conn
+	cursor = metaMLSTDB.cursor 
+
 except IOError: 
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
 	sys.exit(1)
@@ -57,40 +74,37 @@ if os.path.isfile(args.database):
 		cursor.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
 		cursor.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
 	
-		print "Database",args.database,'contains:'
+		print("Database "+args.database+' contains:')
 		cursor.execute("SELECT COUNT(*) as Mv FROM organisms WHERE 1")
-		print '\t',cursor.fetchone()['Mv'], 'organisms'
+		print ('\t'+str(cursor.fetchone()['Mv'])+' organisms')
 		cursor.execute("SELECT COUNT(*) as Mv FROM genes WHERE 1")
-		print '\t',cursor.fetchone()['Mv'], 'total loci'
+		print ('\t'+str(cursor.fetchone()['Mv'])+' total loci')
 		cursor.execute("SELECT COUNT(*) as Mv,SUM(LENGTH(sequence)) as Se FROM alleles WHERE 1")
 		cont=cursor.fetchone()
-		print '\t',cont['Mv'],' total alleles (~'+str(round((cont['Se'] if cont['Se'] is not None else 0)/1000000.0,2))+' Mbps)'
+		print ('\t'+str(cont['Mv'])+' total alleles (~'+str(round((cont['Se'] if cont['Se'] is not None else 0)/1000000.0,2))+' Megabases)')
 		cursor.execute("SELECT COUNT(DISTINCT profileCode) as Mv FROM profiles WHERE 1")
-		print '\t',cursor.fetchone()['Mv'], 'total profiles'
+		print ('\t'+str(cursor.fetchone()['Mv'])+' total profiles')
 
 	except sqlite3.OperationalError as e:
 		metamlst_print("Database Error: "+str(e),'FAIL',bcolors.FAIL)
 
 
-
-
-if args.listkeys:
-	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
-	print '-'*65
+if args.list:
+	print ('-'*65)
+	print ('MetaMLST Key'.ljust(30)+(' '*5)+'organism Full Name'.ljust(30))
+	print ('-'*65)
 	for key,label in db_getOrganisms(conn).items():
-		print key.ljust(30)+(' ')*5+label.ljust(30)
+		print (key.ljust(30)+(' ')*5+label.ljust(30))
 	sys.exit(0)
-
 
 if args.typings or args.sequences:
 
 	if args.sequences:
 		
 		for file in [seq.strip() for seq in args.sequences.split(',')]:
-			#print (' ADDING SEQUENCES '+file+'...')
 			metamlst_print('ADDING SEQUENCES','...',bcolors.HEADER)
 			alleleList = []
-			geneList = []
+			geneList = {}
 			addCounter=0
 			
 			for seq_record in SeqIO.parse(file, "fasta"):
@@ -109,7 +123,12 @@ if args.typings or args.sequences:
 						if len([row for row in cursor.execute("SELECT 1 FROM alleles WHERE bacterium = ? AND gene = ? and alleleVariant = ?",(organism,gene,allele))]) == 0:
 
 							#Add gene-allele couple to the query-list for addition
-							if gene not in [x for (x,k) in geneList]: geneList.append((gene,organism))
+							
+							#if gene geneList.append((gene,organism))
+							if organism not in geneList: geneList[organism] = []
+							if gene not in geneList[organism]: geneList[organism].append(gene)
+
+
 							alleleList.append((gene,organism,allele,str(sequence)))
 							addCounter += 1
 							
@@ -122,8 +141,14 @@ if args.typings or args.sequences:
 				else:
 					metamlst_print(' > Malformed Sequence ID: '+seq_record.id,'SKIP',bcolors.FAIL)
 					continue
-					
-			cursor.executemany("INSERT OR IGNORE INTO genes (geneNAme, bacterium) VALUES (?,?)",geneList)
+			
+			gListToAdd=[]		
+			for org,genes in geneList.items():
+				for gen in genes:
+					gListToAdd.append((gen,org))
+			
+			cursor.executemany("INSERT OR IGNORE INTO genes (geneNAme, bacterium) VALUES (?,?)",gListToAdd)
+
 			cursor.executemany("INSERT INTO alleles (gene, bacterium,alleleVariant,sequence) VALUES (?,?,?,?)",alleleList)
 			metamlst_print('ADDING SEQUENCES '+file+' Added '+str(addCounter)+' seqs','DONE',bcolors.OKGREEN)
 	
@@ -133,7 +158,7 @@ if args.typings or args.sequences:
 			profilesQuery=[]
 			profilesLoaded=0
 			fileOpen = open(file,'r')
-			leng = int(len(fileOpen.readlines()))
+			leng = int(len(fileOpen.readlines()))-2
 			fileOpen.seek(0) 
 			
 			problematicList = {}
@@ -154,12 +179,12 @@ if args.typings or args.sequences:
 				recID_Cache = dict((row['gene']+'_'+str(row['alleleVariant']),row['recID']) for row in cursor.execute("SELECT gene,alleleVariant,recID FROM alleles WHERE bacterium = ?",(organism,))) 
 				problematic = False
 				if intest:
-					#print (' READING MLST loci for '+organismLabel).ljust(50)
+					
 					metamlst_print('READING MLST loci for '+organismLabel,'....',bcolors.OKGREEN)
 					sys.stdout.flush()
 					intest = 0
 					genes = data[1::]
-					#print ('   '+', '.join([g for g in genes if g not in MLST_KEYWORDS])).ljust(51)+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(30) ### 
+					
 					metamlst_print(' > '+', '.join([g for g in genes if g not in MLST_KEYWORDS]),'DONE',bcolors.OKGREEN)
 					
 					sys.stdout.flush()
@@ -193,6 +218,9 @@ if args.typings or args.sequences:
 			if profilesLoaded>0:
 				cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))				
 
+			#last update to percentage
+			percentCompleted = float(profilesLoaded) / float(leng)*100.0
+
 			metamlst_print(str(profilesLoaded)+'/'+str(leng)+' PROFILES LOADED',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True,newLine=True)
 			
 			cursor.executemany("INSERT INTO profiles (bacterium, profileCode, alleleCode) VALUES (?,?,?)", profilesQuery)
@@ -212,17 +240,31 @@ if args.dump_db:
 	
 if args.buildindex:
 	dump_db_to_fasta(conn,'out.fa',args.filter)
-
-	#print '  BUILDING INDEX'.ljust(60),
+	
 	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 
 	sys.stdout.flush()
 	
-	with open('/dev/null','w') as devnull:	
-		child = subprocess.Popen("bowtie2-build out.fa "+args.buildindex,shell=True, stdout=devnull)
-	child.wait()
-	os.remove('out.fa')
-	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
+
+	bt2_cmd = [args.bowtie2_build, '--quiet']
+
+	if args.bowtie2_threads > 1:
+		bt2_build_output = subprocess.check_output([args.bowtie2_build  , '--usage'], stderr=subprocess.STDOUT)
+
+		if 'threads' in str(bt2_build_output):
+			bt2_cmd += ['--threads', str(args.bowtie2_threads)]
+
+	bt2_cmd += ['-f', 'out.fa', args.buildindex]
+
+	try:
+		subprocess.check_call(bt2_cmd)
+		os.remove('out.fa')
+		metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
+	except Exception as e:
+		metamlst_print('Fatal error running bowtie2-index. Error message: '+e,'!',bcolors.FAIL) 
+		sys.exit(1)
+
+	
 if args.buildblast:
 	
 	dump_db_to_fasta(conn,'out.fa',args.filter)
@@ -233,8 +275,7 @@ if args.buildblast:
 	devnull = open('/dev/null', 'w')
 	child = subprocess.Popen("makeblastdb -in out.fa -dbtype nucl -out "+args.buildblast,shell=True, stdout=devnull)
 	child.wait()
-#	os.remove('out.fa')
 	metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True)
 
 conn.commit()
-conn.close()  
+metaMLSTDB.closeConnection()  
