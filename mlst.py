@@ -1,4 +1,4 @@
-#!/usr/bin/env python  
+#!/usr/bin/env python2.7
 
 import sys,os,subprocess,argparse,os
 
@@ -30,17 +30,20 @@ try: from cStringIO import StringIO
 except ImportError:
     sys.stderr.write("Error! Biopython cStringIO library not detected!\n")
     sys.exit(1)
-  
+
+
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
+
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
-parser.add_argument("files", help="Input file (can be a folder)",default="",nargs='?')
-parser.add_argument("-d","--database", help="MLST database path", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
+parser.add_argument("files", help="Input .fasta files (can be a folder)",default="")
+parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)", default=METAMLST_DBPATH)
 parser.add_argument("-w","--work", help="Output files will be placed in this folder. By default the current folder is used (./) ", default='.')
 parser.add_argument("--quiet", help="No output on stdin", action="store_true")
 parser.add_argument("--min_pident", help="Minimum percentage of identity to the reference for each each BLAST to be consideretd (default: 90)", default=90.0, type=float)
 parser.add_argument("--min_length", help="Minimum percentage of gene-coverage for each BLAST alignment to be considered (default: 90)", default=90.0, type=float)
 parser.add_argument("--blastdb_prefix", help="Overrides the creation of a BLASTDB, and use a custom one")
 parser.add_argument("--version", help="Prints version informations", action='store_true')
-parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the available profiles use '?' as profile", default="",nargs='*')
+parser.add_argument("profile", help="MLST key (e.g. ecoli). To see all the available profiles use '?' as profile", default="")
 args=parser.parse_args()
 
 if args.version: print_version()
@@ -49,6 +52,19 @@ if args.files == '':
 	sys.exit(0)
 
 metaMLSTDB = metaMLST_db(args.database)
+
+try:
+	#download the database if a non existing (but default-named) DB file is passed
+	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
+		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2018.db', args.database)
+	
+	metaMLSTDB = metaMLST_db(args.database)
+
+	conn = metaMLSTDB.conn
+	cursor = metaMLSTDB.cursor 
+except IOError: 
+	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
+	sys.exit(1)
 
 if args.profile=='?':
 	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
@@ -73,16 +89,16 @@ profileKeys=metaMLSTDB.getGeneNames(args.profile)
 masterLog.write('SAMPLE\tBACTERIUM\tST\tST_ACCURACY\t'+'\t'.join([k+'\t'+k+'_perc_iden\t'+k+'_len_of_gene\t'+k+'_len_aligned' for k in sorted(profileKeys)])+'\r\n')
 
 if not args.quiet:
-	print bcolors.OKGREEN+"Long/Exact Match"+bcolors.ENDC+'\t No SNPs: perfect match'
-	print bcolors.WARNING+"Short/Exact Match "+bcolors.ENDC+'\t No SNPs, part of locus is covered  (report closest)'
-	print bcolors.OKBLUE+"Long/Partial Match"+bcolors.ENDC+'\t Some SNPs, whole locus is covered (report closest)'
-	print bcolors.RED+"Short/Partial Match"+bcolors.ENDC+'\t Some SNPs, part of locus is covered (report closest)\n\n'
+	print(bcolors.OKGREEN+"Long/Exact Match"+bcolors.ENDC+'\t No SNPs: perfect match')
+	print(bcolors.WARNING+"Short/Exact Match "+bcolors.ENDC+'\t No SNPs, part of locus is covered  (report closest)')
+	print(bcolors.OKBLUE+"Long/Partial Match"+bcolors.ENDC+'\t Some SNPs, whole locus is covered (report closest)')
+	print(bcolors.RED+"Short/Partial Match"+bcolors.ENDC+'\t Some SNPs, part of locus is covered (report closest)\n\n')
 
 prefix = ''
 if os.path.isdir(args.files):
 	prefix=args.files+'/'
 	subFiles = os.listdir(args.files)
-else: subFiles = args.files.split('\t')
+else: subFiles = args.files.split(',')
 	
 for file in subFiles:
 	
@@ -195,13 +211,13 @@ for file in subFiles:
 	of.close()
 	
 	if not args.quiet:
-		print 'FILE'.ljust(15)+'|'.join([k.center(7) for k in sorted(profileKeys)])+'|'+'ST'.center(5)
-		print '-'*80
-		print os.path.basename(file)[:14].ljust(15)+'|'.join([ (allelic[k]['color'][0]+allelic[k]['allele'].center(7)+bcolors.ENDC) if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|'+(profileID+' ('+str(profileScore)+'%)').center(7)
-		print '-'*80
-		print 'Perc. Ident.  '.rjust(15)+'|'.join([ (allelic[k]['color'][1]+allelic[k]['perc'].center(7)+bcolors.ENDC)   if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|'
-		print 'Length.  '.rjust(15)+'|'.join([(allelic[k]['color'][2]+allelic[k]['len'].center(7)+bcolors.ENDC) if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|'
-		print ''
+		print ('FILE'.ljust(15)+'|'.join([k.center(7) for k in sorted(profileKeys)])+'|'+'ST'.center(5))
+		print ('-'*80)
+		print (os.path.basename(file)[:14].ljust(15)+'|'.join([ (allelic[k]['color'][0]+allelic[k]['allele'].center(7)+bcolors.ENDC) if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|'+(profileID+' ('+str(profileScore)+'%)').center(7))
+		print ('-'*80)
+		print ('Perc. Ident.  '.rjust(15)+'|'.join([ (allelic[k]['color'][1]+allelic[k]['perc'].center(7)+bcolors.ENDC)   if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|')
+		print ('Length.  '.rjust(15)+'|'.join([(allelic[k]['color'][2]+allelic[k]['len'].center(7)+bcolors.ENDC) if allelic[k] != {} else '-'.center(7) for k in sorted(allelic.keys())])+'|')
+		print ('')
 	
 	masterLog.write(os.path.basename(file)+'\t'+args.profile+'\t'+profileID+'\t'+profileScore+'\t'+'\t'.join( [(allelic[k]['allele']+'\t'+allelic[k]['perc']+'\t'+allelic[k]['leng']+'\t'+allelic[k]['slen']) if allelic[k] != {} else '-\t-\t-\t-' for k in sorted(allelic.keys())] )+'\r\n' )
 	

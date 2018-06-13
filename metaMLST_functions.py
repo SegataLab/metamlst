@@ -1,23 +1,101 @@
 #!/usr/bin/env python
 
-import json, math,sqlite3,itertools,subprocess,time,gc,argparse, re, os,sys,pkgutil,importlib
+from __future__ import print_function
+import json
+import math
+import sqlite3
+import itertools
+import subprocess
+import time
+import gc
+import argparse
+import re
+import os
+import sys
+import pysam
 
-from StringIO import StringIO
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
 
+try:
+	from StringIO import StringIO
+except ImportError:
+	from io import StringIO
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '1.1'
-__date__ = '26 April 2017'
+__version__ = '1.2'
+__date__ = '12 June 2018'
+
+def byte_to_megabyte(byte):
+    """
+    Convert byte value to megabyte
+    """
+
+    return byte / (1024.0**2)
+
+
+class ReportHook():
+    def __init__(self):
+        self.start_time = time.time()
+
+    def report(self, blocknum, block_size, total_size):
+        """
+        Print download progress message
+        """
+
+        if blocknum == 0:
+            self.start_time = time.time()
+            if total_size > 0:
+                sys.stderr.write("Downloading file of size: {:.2f} MB\n"
+                                 .format(byte_to_megabyte(total_size)))
+        else:
+            total_downloaded = blocknum * block_size
+            status = "{:3.2f} MB ".format(byte_to_megabyte(total_downloaded))
+
+            if total_size > 0:
+                percent_downloaded = total_downloaded * 100.0 / total_size
+                # use carriage return plus sys.stderr to overwrite stderr
+                download_rate = total_downloaded / (time.time() - self.start_time)
+                estimated_time = (total_size - total_downloaded) / download_rate
+                estimated_minutes = int(estimated_time / 60.0)
+                estimated_seconds = estimated_time - estimated_minutes * 60.0
+                status += ("{:3.2f} %  {:5.2f} MB/sec {:2.0f} min {:2.0f} sec "
+                           .format(percent_downloaded,
+                                   byte_to_megabyte(download_rate),
+                                   estimated_minutes, estimated_seconds))
+
+            status += "        \r"
+            sys.stderr.write(status)
+
+
+def download(url, download_file):
+    """
+    Download a file from a url
+    """
+    # try to import urllib.request.urlretrieve for python3
+    try:
+        from urllib.request import urlretrieve
+    except ImportError:
+        from urllib import urlretrieve
+
+    if not os.path.isfile(download_file):
+        try:
+            sys.stderr.write("\nDownloading " + url + "\n")
+            file, headers = urlretrieve(url, download_file,
+                                        reporthook=ReportHook().report)
+        except EnvironmentError:
+            sys.stderr.write("\nWarning: Unable to download " + url + "\n")
+    else:
+        sys.stderr.write("\nFile {} already present!\n".format(download_file))
+
 
 
 def print_version():
-	print "Version:\t"+__version__
-	print "Author:\t\t"+__author__
-	print "Reference:\t"+'MetaMLST: multi-locus strain-level bacterial typing from metagenomic samples\n\t\tNucleic Acids Research, 2016\n\t\tDOI: 10.1093/nar/gkw837'
+	print ("Version:\t"+__version__)
+	print ("Author:\t\t"+__author__)
+	print ("Reference:\t"+'MetaMLST: multi-locus strain-level bacterial typing from metagenomic samples\n\t\tNucleic Acids Research, 2016\n\t\tDOI: 10.1093/nar/gkw837')
 	sys.exit(0)
 
 def metamlst_print(mesg,label,type,reline=False,newLine=False):
@@ -34,7 +112,7 @@ def metamlst_print(mesg,label,type,reline=False,newLine=False):
 		for word in mesg.split(' '):
 
 				if c + len(word)+2 > 65:
-					print ' '.join(wds)
+					print (' '.join(wds))
 					c=0
 					wds=[word]
 					continue
@@ -149,16 +227,18 @@ def sort_index(bamFile,legacy=False):
 
 def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=False):
 
-	if legacy: metamlst_print('Samtools < 1.x legacy mode enabled','...',bcolors.HEADER)
+#	if legacy: metamlst_print('Samtools < 1.x legacy mode enabled','...',bcolors.HEADER)
+#
+# 	if pkgutil.find_loader('pysam') is not None:
+# 		
+#	else:
+#		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=legacy)
 
- 	if pkgutil.find_loader('pysam') is not None:
- 		import pysam
-	else:
-		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=legacy)
 
+	
 	if not os.path.isfile(bamFile+'.bai'): pysam.index(bamFile)
 	seqRec = []
- 	chromosomes = {}
+	chromosomes = {}
 
 	samfile = pysam.AlignmentFile(bamFile, "rb")
 
@@ -174,15 +254,22 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=Fa
 
 			for pileupread in pileupcolumn.pileups:
 				if not pileupread.is_del and not pileupread.is_refskip:
-					base = pileupread.alignment.query_sequence[pileupread.query_position]
-					
+
+					base = str(pileupread.alignment.query_sequence[pileupread.query_position]).upper()
 					if int(pileupread.alignment.get_tag('AS')) >= filterScore and int(pileupread.alignment.get_tag('XM')) <= max_xM: 
 						
 						if base in ldict.keys(): ldict[base]+=1
 					#else otherBases.append(pileupread.alignment.query_sequence[pileupread.query_position])
 
-			#print chre,pileupcolumn.pos+1,ldict
-			chromosomes[chre][pileupcolumn.pos+1] = max(ldict, key=ldict.get)
+
+
+			if any([v>0 for v in ldict.values()]): 
+				nucConsensus = max(sorted(ldict), key=ldict.get)
+			else:
+				nucConsensus = 'N'
+
+			chromosomes[chre][pileupcolumn.pos+1] = nucConsensus
+			
 
 	
 	for chromo,nucleots in chromosomes.items(): 
@@ -198,6 +285,8 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=Fa
 			sequen = sequen + nucleotide
 			
 		sequen+=((chromosomesLen[chromo]-len(sequen))*"N")
+
+
 		
 		rSequen = list(sequen)
 		dbSequen = chromosomeList[chromo] 
@@ -220,11 +309,10 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=Fa
 		
 			
 		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
-	print '\r',
+	print ('\r', end='')
 
 
-	samfile.close()
-	#seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+	samfile.close() 
 	
 	return seqRec
 def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=False):
@@ -277,7 +365,7 @@ def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,le
 
 	out = StringIO(child.communicate(strr)[0]) 
 	
-	if debugMode: print out.getvalue() 
+	if debugMode: print (out.getvalue()) 
 	
 	for line in out:  
 		chromosome = line.split('\t')[0]
@@ -349,7 +437,7 @@ def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,le
 		
 			
 		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
-	print '\r',
+	print ('\r', end='')
 	return seqRec
 
 MLST_KEYWORDS = ['clonal_complex','species','mlst_clade']
@@ -367,7 +455,7 @@ class bcolors:
 
 def db_getOrganisms(conn,bacterium=None):
 	e = conn.cursor()
-	t= dict((elem['organismkey'],(elem['label']) if elem['label'] is not None else '('+elem['organismkey']+')') for elem in e.execute("SELECT * FROM organisms"))
+	t= dict((elem['organismkey'],( (elem['label']) if elem['label'] is not None else '('+elem['organismkey']+')')) for elem in e.execute("SELECT label,organismkey,COUNT(DISTINCT profileCode) AS totalProfiles FROM organisms,profiles WHERE organismkey = bacterium GROUP BY label,organismkey"))
 	if bacterium: return t[bacterium] 
 	else: return  t
 	
@@ -383,8 +471,11 @@ class metaMLST_db:
 			self.conn.row_factory = sqlite3.Row
 			self.cursor = self.conn.cursor()
 		except IOError: 
-			print "IOError: unable to access "+args.database+"!"
+			print ("IOError: unable to access "+args.database+"!")
 	
+	def closeConnection(self):
+		self.conn.close()
+
 	def getOrganisms(self,bacterium=None):
 		listAlleles = []
 

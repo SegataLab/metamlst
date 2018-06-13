@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python3
 
 try: 
 	import math
@@ -10,11 +10,14 @@ try:
 	import os
 	import sys
 	from metaMLST_functions import *
-	from StringIO import StringIO
 except ImportError as e:
-	print "Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re"
+	print ("Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re:\n"+str(e))
 	sys.exit(1)
- 
+
+try:
+	from StringIO import StringIO
+except ImportError:
+	from io import StringIO
 
 try:
 	from Bio import SeqIO
@@ -27,14 +30,14 @@ except ImportError as e:
 	sys.exit(1)
 
 
- 
-parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter)
+
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 		description='Detects the MLST profiles from a collection of intermediate files from MetaMLST.py')
 
 parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files",nargs='?')
-parser.add_argument("-d", metavar="DB_PATH", help="MetaMLST SQLite Database File (created with metaMLST-index)", default=os.path.abspath(os.path.dirname(__file__))+'/metamlstDB_2017.db')
+parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)", default=METAMLST_DBPATH)
 parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 parser.add_argument("-z", metavar="ED", help="Maximum Edit Distance from the closest reference to call a new MLST allele. Default: 5", default=5, type=int)
 
@@ -53,18 +56,20 @@ args=parser.parse_args()
 if args.version:
 	print_version()
 	sys.exit(0)
-
-if not os.path.isfile(args.d): 
-	metamlst_print('Unable to access '+args.d,'FAIL',bcolors.FAIL)
-	sys.exit(1)
-
+ 
 
 try:
-	conn = sqlite3.connect(args.d)
+	#if not os.path.isfile(args.database):
+	#	download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2017.db', args.database)
+
+	metaMLSTDB = metaMLST_db(args.database)
+	conn = metaMLSTDB.conn
+	cursor = metaMLSTDB.cursor 
 except IOError: 
-	print "IOError: unable to access "+args.d+"!"
-conn.row_factory = sqlite3.Row
-cursor = conn.cursor()
+	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
+	sys.exit(1) 
+
+ 
 
 
 cel = {}
@@ -76,7 +81,7 @@ if args.folder is None:
 try:
 	if not os.path.isdir(args.folder+'/merged'): os.makedirs(args.folder+'/merged')
 except IOError: 
-	print "IOError: unable to access "+args.folder+"!"
+	print ("IOError: unable to access "+args.folder+"!")
 
 
 
@@ -104,9 +109,9 @@ for file in os.listdir(args.folder):
 for bacterium,bactRecord in cel.items(): #For each bacterium:
 
 
-	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
-	print bcolors.OKBLUE+'|'+bcolors.ENDC+str(db_getOrganisms(conn,bacterium)).center(78)+bcolors.OKBLUE+'|'+bcolors.ENDC
-	print bcolors.OKBLUE+('-'*80)+bcolors.ENDC 
+	print (bcolors.OKBLUE+'+'+('-'*78)+'+'+bcolors.ENDC )
+	print (bcolors.OKBLUE+'|'+bcolors.ENDC+str(db_getOrganisms(metaMLSTDB.conn,bacterium)).center(78)+bcolors.OKBLUE+'|'+bcolors.ENDC)
+	print (bcolors.OKBLUE+'+'+('-'*78)+'+'+bcolors.ENDC )
 	 
 	profil = open(args.folder+'/merged/'+bacterium+'_ST.txt','w')
 	
@@ -146,11 +151,11 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			 #TODO: change seq_recog
 			geneOrganism,geneName,geneAllele = geneLabel.split('_')
 			sum_of_accuracies += float(geneAccur)
-			if geneSeq == '' or sequenceExists(conn,bacterium,geneSeq):
+			if geneSeq == '' or sequenceExists(metaMLSTDB.conn,bacterium,geneSeq):
 				# WE HAVE A DATABASE SEQUENCE
 				#print "WE HAVE A DATABASE SEQUENCE"
 				#geneSeq = cursor.execute("SELECT sequence")
-				if geneSeq != '': geneAllele = sequenceLocate(conn,bacterium,geneSeq)
+				if geneSeq != '': geneAllele = sequenceLocate(metaMLSTDB.conn,bacterium,geneSeq)
 				profileLine[geneName] = (geneAllele,0)
 				
 			elif geneSeq in genesBase:
@@ -166,7 +171,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				if args.z != None: 
 					geneCategoryCode = 3 #default becomes now not accepted
 					
-					for refCode,refSeq in sequencesGetAll(conn,bacterium,geneName).items():
+					for refCode,refSeq in sequencesGetAll(metaMLSTDB.conn,bacterium,geneName).items():
 						if stringDiff(geneSeq,refSeq) <= args.z:
 						    #print geneName,refCode,stringDiff(geneSeq,refSeq)
 						    geneCategoryCode = 1 # if match allele_max_snps: accept
@@ -194,7 +199,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		
 			#Tries to define an existing MLST profile with the alleles
 			if not flagRecurrent:
-				tryDefine = defineProfile(conn,[bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
+				tryDefine = defineProfile(metaMLSTDB.conn,[bacterium+'_'+k+'_'+v[0] for k,v in profileLine.items()])
 				#lopo
 				if tryDefine and tryDefine[0][1] == 100: 
 			
@@ -223,11 +228,9 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			profileCategoryCode = 1 
 			if args.z != None: 
 				for k,(v,cat) in profileLine.items():
-				    if cat == 3: #if rejectable allele
-					profileCategoryCode = 3 #rejectable profile
-					break
-				      
-				      
+					if cat == 3: #if rejectable allele
+						profileCategoryCode = 3 #rejectable profile
+						break
 			
 			encounteredProfiles[lastProfile] = [profileLine,1,profileCategoryCode]
 			if profileCategoryCode != 3: isolates.append((lastProfile,meanAccuracy,sampleRecord)) 
@@ -245,19 +248,19 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 	
 	
 	profil.write('ST\t'+'\t'.join([x for x in sorted(lastGenes.keys())] )+'\r\n')
-	print 'KNOWN MLST profiles found:\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
+	print ('KNOWN MLST profiles found:\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits')
 	
 	# OLD PROFILES
 	
 	for profileCode,(hits,profile) in oldProfiles.items():
 		profil.write(str(profileCode)+'\t'+'\t'.join([str(v) for k,v in sorted(profile.items())])+'\r\n')
 		if hits > 0: 
-			print bcolors.FAIL+str(profileCode)+bcolors.ENDC + '\t' + '\t'.join([str(v) for k,v in sorted(profile.items())])+'\t'+str(hits)
+			print (bcolors.FAIL+str(profileCode)+bcolors.ENDC + '\t' + '\t'.join([str(v) for k,v in sorted(profile.items())])+'\t'+str(hits))
 			sys.stdout.flush()
 			
 	#NEW PROFILES (ACCEPTED)
 	
-	print '\n\nNEW MLST profiles found:\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'	
+	print ('\n\nNEW MLST profiles found:\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits')	
 	for profileID,(profile,hits,profileCategoryCode) in encounteredProfiles.items():
 		
 		if profileCategoryCode not in [1,2]: continue
@@ -265,26 +268,26 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 		if profileCategoryCode == 1: profileNumber = bcolors.WARNING+str(profileID)+bcolors.ENDC
 		elif profileCategoryCode == 2: profileNumber = bcolors.OKGREEN+str(profileID)+bcolors.ENDC
 		
-		print profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
+		print (profileNumber + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits))
 		sys.stdout.flush()
 			
 		profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
 
 	#NEW PROFILES (REJECTED)
 	
-	print '\n\nREJECTED NEW MLST profiles, SNPs threshold (-z): '+str(args.z)+'\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits'
+	print ('\n\nREJECTED NEW MLST profiles, as they have > SNPs than max-threshold (-z '+str(args.z)+')\nST\t'+'\t'.join([x for x in sorted(lastGenes.keys())])+'\tHits')
 	for profileID,(profile,hits,profileCategoryCode) in encounteredProfiles.items():
 		
 		if profileCategoryCode not in [3]: continue
-	        profileNumber = bcolors.OKBLUE+str(profileID)+bcolors.ENDC
+		profileNumber = bcolors.OKBLUE+str(profileID)+bcolors.ENDC
 	        
-		print str(profileID) + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits)
+		print (str(profileID) + '\t' + '\t'.join([bcolors.OKBLUE+str(v[0])+bcolors.ENDC if v[1] == 1 else bcolors.OKGREEN+str(v[0])+bcolors.ENDC if v[1] == 2 else bcolors.FAIL+str(v[0])+bcolors.ENDC if v[1] == 3 else str(v[0]) for k,v in sorted(profile.items())]) + '\t' + str(hits))
 		sys.stdout.flush()
 			
 		#profil.write(str(profileID)+'\t'+'\t'.join([str(v[0]) for k,v in sorted(profile.items())])+'\n')
 	
 	profil.close()
-	print ""
+	print ("")
  
 	metamlst_print("Outputing results",'...',bcolors.ENDC)
 	
@@ -487,11 +490,14 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			
 			SeqIO.write(phyloSeq,args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")
 
-print "Colour Legend:\n"+"-"*80
-print "Alleles:"+'\t'+"[Known]"+'\t'+bcolors.OKBLUE+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW-RECURRING]"+bcolors.ENDC
-print "Profiles:"+'\t'+bcolors.FAIL+"[Known]"+bcolors.ENDC+'\t'+bcolors.WARNING+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW*]"+bcolors.ENDC
-print "New* profiles are composed by Known and Recurring alleles only"
-print '-'*80
+
+metaMLSTDB.closeConnection()
+
+print("Colour Legend:\n"+"-"*80)
+print("Alleles:"+'\t'+"[Known]"+'\t'+bcolors.OKBLUE+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW-RECURRING]"+bcolors.ENDC)
+print("Profiles:"+'\t'+bcolors.FAIL+"[Known]"+bcolors.ENDC+'\t'+bcolors.WARNING+"[NEW]"+bcolors.ENDC+'\t'+bcolors.OKGREEN+"[NEW*]"+bcolors.ENDC)
+print("New* profiles are composed by Known and Recurring alleles only")
+print('-'*80)
 
 
-print "Completed! Have a nice day."
+print ("Completed! Have a nice day.")
