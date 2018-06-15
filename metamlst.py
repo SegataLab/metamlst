@@ -235,6 +235,7 @@ for speciesKey,species in cel.items():
 
 		l = [sorted([(speciesKey+'_'+g1+'_'+k,db_getUnalSequence(metaMLSTDB.conn,speciesKey,g1,k)) for k,(val,leng,avg) in g2.items() if avg == max([avg1 for (val1,leng1,avg1) in g2.values()])],key=lambda x: int(x[0].split('_')[2]))[0] for g1,g2 in species.items()] 
 		e1 = dict(l)
+		
 		consenSeq = buildConsensus(args.BAMFILE, dict(l),args.minscore,args.max_xM,args.debug)
 		
 		
@@ -286,4 +287,3 @@ for speciesKey,species in cel.items():
 metaMLSTDB.closeConnection() 
 
 if len(cel) and not args.quiet: print ('\033[92m'+'[ - Completed - ]'.rjust(80,' ')+'\033[0m')
-

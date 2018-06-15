@@ -57,6 +57,8 @@ if args.database is None:
 try:
 	#download the database if a non existing (but default-named) DB file is passed
 	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
+		if not os.path.isdir(os.path.dirname(METAMLST_DBPATH)):
+			os.mkdir(os.path.dirname(METAMLST_DBPATH),mode=0o775)
 		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2018.db', args.database)
 
 	metaMLSTDB = metaMLST_db(args.database)
