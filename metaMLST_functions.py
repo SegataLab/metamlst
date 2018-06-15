@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 import json
@@ -13,6 +13,7 @@ import re
 import os
 import sys
 import pysam
+
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -226,95 +227,40 @@ def sort_index(bamFile,legacy=False):
 	subprocess.call(['samtools','index',bamFile])
 
 def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=False):
-
-#	if legacy: metamlst_print('Samtools < 1.x legacy mode enabled','...',bcolors.HEADER)
-#
-# 	if pkgutil.find_loader('pysam') is not None:
-# 		
-#	else:
-#		return buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=legacy)
-
-
+	# imports
+	from cmseq import cmseq
 	
-	if not os.path.isfile(bamFile+'.bai'): pysam.index(bamFile)
 	seqRec = []
-	chromosomes = {}
+	referenceLoci = list(chromosomeList.keys()) 
+	vf = cmseq.BamFile(bamFile,filterInputList=referenceLoci) 
 
-	samfile = pysam.AlignmentFile(bamFile, "rb")
-
-	chromosomesLen = dict((r,l) for r,l in zip(samfile.references,samfile.lengths))
-
-	for chre in chromosomeList.keys():
-		
-		chromosomes[chre] = {}
-
-		for pileupcolumn in samfile.pileup(chre,stepper='nofilter'):
-			ldict = {'A':0,'T':0,'C':0,'G':0}
-			#otherBases = {}			
-
-			for pileupread in pileupcolumn.pileups:
-				if not pileupread.is_del and not pileupread.is_refskip:
-
-					base = str(pileupread.alignment.query_sequence[pileupread.query_position]).upper()
-					if int(pileupread.alignment.get_tag('AS')) >= filterScore and int(pileupread.alignment.get_tag('XM')) <= max_xM: 
-						
-						if base in ldict.keys(): ldict[base]+=1
-					#else otherBases.append(pileupread.alignment.query_sequence[pileupread.query_position])
-
-
-
-			if any([v>0 for v in ldict.values()]): 
-				nucConsensus = max(sorted(ldict), key=ldict.get)
-			else:
-				nucConsensus = 'N'
-
-			chromosomes[chre][pileupcolumn.pos+1] = nucConsensus
-			
-
-	
-	for chromo,nucleots in chromosomes.items(): 
-		sys.stdout.flush()
-
-		sequen = ""
-		lastSet = 0
-
-		for key,nucleotide in sorted(nucleots.items(), key=lambda x : x[0]):
-			if lastSet+1 != key:
-				sequen = sequen + "N" * (key-(lastSet+1))
-			lastSet = key
-			sequen = sequen + nucleotide
-			
-		sequen+=((chromosomesLen[chromo]-len(sequen))*"N")
-
-
-		
-		rSequen = list(sequen)
+	for chromo,nucleots in chromosomeList.items():
+		rSequen = vf.get_contig_by_label(chromo).reference_free_consensus(dominant_frq_thrsh=0.4, mincov=1, minqual=20, noneCharacter='N',
+																		  BAM_tagFilter=[('AS', 'loc_gte', filterScore), ('XM', 'loc_lte', max_xM)])
 		dbSequen = chromosomeList[chromo] 
-		
-		i=0
-		cIndex=0
-		SNPs=0 
-		
+		i = 0
+		cIndex = 0
+		SNPs = 0 
 		
 		for chr in rSequen:
 			if chr == 'N':
 				rSequen[i] = dbSequen[i].lower()
-				cIndex+=1
-				
+				cIndex += 1	
 			elif rSequen[i] != dbSequen[i]: 
 				rSequen[i] = rSequen[i]
-				SNPs+=1
+				SNPs += 1
+
 			i+=1
+
 		sequen = ''.join(rSequen)
-		
-			
 		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+
 	print ('\r', end='')
-
-
-	samfile.close() 
+	vf.bam_handle.close() 
 	
 	return seqRec
+
+
 def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy_samtools=False):
 
 	chromosomes = {}
