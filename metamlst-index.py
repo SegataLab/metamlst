@@ -239,30 +239,32 @@ if args.dump_db:
 	dump_db_to_fasta(conn,args.dump_db,args.filter)
 	
 if args.buildindex:
-	dump_db_to_fasta(conn,'out.fa',args.filter)
-	
-	metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 
-	sys.stdout.flush()
-	
+	if os.path.isfile(args.buildindex+'.1.bt2'):
+		metamlst_print("File "+args.buildindex+'.1.bt2 is already present. It seems the index is already there.','SKIP',bcolors.FAIL)
+	else:
+		dump_db_to_fasta(conn,'out.fa',args.filter)
+		metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
+		sys.stdout.flush()
+		
 
-	bt2_cmd = [args.bowtie2_build, '--quiet']
+		bt2_cmd = [args.bowtie2_build, '--quiet']
 
-	if args.bowtie2_threads > 1:
-		bt2_build_output = subprocess.check_output([args.bowtie2_build  , '--usage'], stderr=subprocess.STDOUT)
+		if args.bowtie2_threads > 1:
+			bt2_build_output = subprocess.check_output([args.bowtie2_build  , '--usage'], stderr=subprocess.STDOUT)
 
-		if 'threads' in str(bt2_build_output):
-			bt2_cmd += ['--threads', str(args.bowtie2_threads)]
+			if 'threads' in str(bt2_build_output):
+				bt2_cmd += ['--threads', str(args.bowtie2_threads)]
 
-	bt2_cmd += ['-f', 'out.fa', args.buildindex]
+		bt2_cmd += ['-f', 'out.fa', args.buildindex]
 
-	try:
-		subprocess.check_call(bt2_cmd)
-		os.remove('out.fa')
-		metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
-	except Exception as e:
-		metamlst_print('Fatal error running bowtie2-index. Error message: '+e,'!',bcolors.FAIL) 
-		sys.exit(1)
+		try:
+			subprocess.check_call(bt2_cmd)
+			os.remove('out.fa')
+			metamlst_print('BUILDING INDEX','DONE',bcolors.OKGREEN,reline=True,newLine=True) 
+		except Exception as e:
+			metamlst_print('Fatal error running bowtie2-index. Error message: '+e,'!',bcolors.FAIL) 
+			sys.exit(1)
 
 	
 if args.buildblast:
