@@ -235,8 +235,8 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=Fa
 	vf = cmseq.BamFile(bamFile,filterInputList=referenceLoci) 
 
 	for chromo,nucleots in chromosomeList.items():
-		rSequen = vf.get_contig_by_label(chromo).reference_free_consensus(dominant_frq_thrsh=0.4, mincov=1, minqual=20, noneCharacter='N',
-																		  BAM_tagFilter=[('AS', 'loc_gte', filterScore), ('XM', 'loc_lte', max_xM)])
+		rSequen = list(vf.get_contig_by_label(chromo).reference_free_consensus(dominant_frq_thrsh=0.4, mincov=1, minqual=20, noneCharacter='N',
+																		  BAM_tagFilter=[('AS', 'loc_gte', filterScore), ('XM', 'loc_lte', max_xM)]))
 		dbSequen = chromosomeList[chromo] 
 		i = 0
 		cIndex = 0
