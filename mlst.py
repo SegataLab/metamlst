@@ -32,7 +32,7 @@ except ImportError:
     sys.exit(1)
 
 
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
 
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
 parser.add_argument("files", help="Input .fasta files (can be a folder)",default="")
@@ -56,7 +56,15 @@ metaMLSTDB = metaMLST_db(args.database)
 try:
 	#download the database if a non existing (but default-named) DB file is passed
 	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
-		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2018.db', args.database)
+		import zipfile
+		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2019.db.zip', args.database+'.zip')
+		
+		if os.path.isfile(METAMLST_DBPATH+'.zip'):
+			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')
+			zip_ref.extractall(os.path.dirname(METAMLST_DBPATH))
+			zip_ref.close()
+
+
 	
 	metaMLSTDB = metaMLST_db(args.database)
 
