@@ -26,7 +26,7 @@ except ImportError as e:
 	sys.exit(1)
  
 
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 		description='Reconstruct the MLST loci from a BAMFILE aligned to the reference MLST loci')

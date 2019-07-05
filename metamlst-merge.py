@@ -31,7 +31,7 @@ except ImportError as e:
 
 
 
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2018.db'
+METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
 
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 		description='Detects the MLST profiles from a collection of intermediate files from MetaMLST.py')
