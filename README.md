@@ -11,18 +11,18 @@ MetaMLST is a software tool that performs an *in-silico* Multi Locus Sequence Ty
 ### How it works? ###
 
 MetaMLST works by reconstructing the MLST loci-sequences using the closest reference from the publicly available datsets (PubMLST) and traces the most abundant strain of each species:
-![MetaMLST pipeline schema](http://segatalab.cibio.unitn.it/images/metamlst_working_concept.jpg)
+![MetaMLST pipeline schema](http://segatalab.github.io/images/metamlst_working_concept.jpg)
 
 ### How can I use it? ###
 
-Please refer to the [**Wiki**](https://bitbucket.org/CibioCM/metamlst/wiki/) for the *documentation*. You can also try the [**examples**](https://bitbucket.org/CibioCM/metamlst/downloads/metamlst_examples.zip).
+Please refer to the [**Wiki**](https://github.com/SegataLab/metamlst/wiki/) for the *documentation*. You can also try the [**examples**](https://www.dropbox.com/s/xmbjj37k612f0rr/metamlst_examples.zip?dl=0).
 
 ### Where can I get support? ###
 
 * Bugs and Support: [**MetaMLST Users Support Group**](https://groups.google.com/forum/#!forum/metamlst)
-* Project page at [SegataLab](http://segatalab.cibio.unitn.it/tools/metamlst)
-* Project [Wiki](https://bitbucket.org/CibioCM/metamlst/wiki/)
+* Project page at [SegataLab](http://segatalab.bitbucket.io/tools/metamlst)
+* Project [Wiki](https://github.com/SegataLab/metamlst/wiki/)
 
-### Publications ###
+### Publication ###
 
 * Moreno Zolfo, Adrian Tett, Olivier Jousson, Claudio Donati and Nicola Segata - **[MetaMLST: multi-locus strain-level bacterial typing from metagenomic samples](http://nar.oxfordjournals.org/content/early/2016/09/19/nar.gkw837.full)** - *Nucleic Acids Research, 2016* DOI: 10.1093/nar/gkw837

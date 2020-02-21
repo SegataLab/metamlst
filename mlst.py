@@ -57,7 +57,7 @@ try:
 	#download the database if a non existing (but default-named) DB file is passed
 	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
 		import zipfile
-		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2019.db.zip', args.database+'.zip')
+		download('https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1', args.database+'.zip')
 		
 		if os.path.isfile(METAMLST_DBPATH+'.zip'):
 			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')

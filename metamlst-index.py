@@ -62,7 +62,7 @@ try:
 
 		if not os.path.isdir(os.path.dirname(METAMLST_DBPATH)):
 			os.mkdir(os.path.dirname(METAMLST_DBPATH),mode=0o775)
-		download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2019.db.zip', args.database+'.zip')
+		download('https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1', args.database+'.zip')
 
 		if os.path.isfile(METAMLST_DBPATH+'.zip'):
 			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')
