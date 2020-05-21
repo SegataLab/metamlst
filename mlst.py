@@ -32,11 +32,9 @@ except ImportError:
     sys.exit(1)
 
 
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
-
 parser = argparse.ArgumentParser('Performs MLST analysis on contigs or genomes')
 parser.add_argument("files", help="Input .fasta files (can be a folder)",default="")
-parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)", default=METAMLST_DBPATH)
+parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)")
 parser.add_argument("-w","--work", help="Output files will be placed in this folder. By default the current folder is used (./) ", default='.')
 parser.add_argument("--quiet", help="No output on stdin", action="store_true")
 parser.add_argument("--min_pident", help="Minimum percentage of identity to the reference for each each BLAST to be consideretd (default: 90)", default=90.0, type=float)
@@ -51,25 +49,17 @@ if args.files == '':
 	parser.print_help()
 	sys.exit(0)
 
-metaMLSTDB = metaMLST_db(args.database)
-
 try:
 	#download the database if a non existing (but default-named) DB file is passed
-	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
-		import zipfile
-		download('https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1', args.database+'.zip')
-		
-		if os.path.isfile(METAMLST_DBPATH+'.zip'):
-			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')
-			zip_ref.extractall(os.path.dirname(METAMLST_DBPATH))
-			zip_ref.close()
+	if not args.database:
+		dbPath=check_install()
+	else:
+		dbPath=args.database
 
-
-	
-	metaMLSTDB = metaMLST_db(args.database)
-
+	metaMLSTDB = metaMLST_db(dbPath)
 	conn = metaMLSTDB.conn
-	cursor = metaMLSTDB.cursor 
+	cursor = metaMLSTDB.cursor
+
 except IOError: 
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
 	sys.exit(1)

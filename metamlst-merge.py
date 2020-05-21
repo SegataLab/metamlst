@@ -30,14 +30,11 @@ except ImportError as e:
 	sys.exit(1)
 
 
-
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
-
 parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
 		description='Detects the MLST profiles from a collection of intermediate files from MetaMLST.py')
 
 parser.add_argument("folder", help="Path to the folder containing .nfo MetaMLST.py files",nargs='?')
-parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)", default=METAMLST_DBPATH)
+parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)")
 parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 parser.add_argument("-z", metavar="ED", help="Maximum Edit Distance from the closest reference to call a new MLST allele. Default: 5", default=5, type=int)
 
@@ -59,15 +56,19 @@ if args.version:
  
 
 try:
-	#if not os.path.isfile(args.database):
-	#	download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2017.db', args.database)
+	#download the database if a non existing (but default-named) DB file is passed
+	if not args.database:
+		dbPath=check_install()
+	else:
+		dbPath=args.database
 
-	metaMLSTDB = metaMLST_db(args.database)
+	metaMLSTDB = metaMLST_db(dbPath)
 	conn = metaMLSTDB.conn
-	cursor = metaMLSTDB.cursor 
+	cursor = metaMLSTDB.cursor
+
 except IOError: 
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
-	sys.exit(1) 
+	sys.exit(1)
 
  
 
@@ -105,6 +106,9 @@ for file in os.listdir(args.folder):
 		
 		if organism not in cel: cel[organism] = []
 		cel[organism].append((dict((x.split('::')[0],(x.split('::')[1].upper(),x.split('::')[2],x.split('::')[3])) for x in genes),sampleName))
+
+
+print (bcolors.OKBLUE+'MetaMLST Database file: '+bcolors.ENDC+os.path.basename(dbPath)+'\n')
 
 for bacterium,bactRecord in cel.items(): #For each bacterium:
 

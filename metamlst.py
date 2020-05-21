@@ -26,14 +26,14 @@ except ImportError as e:
 	sys.exit(1)
  
 
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
+#METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 		description='Reconstruct the MLST loci from a BAMFILE aligned to the reference MLST loci')
 
 parser.add_argument("BAMFILE", help="BowTie2 BAM file containing the alignments",nargs='?')
 parser.add_argument("-o", metavar="OUTPUT FOLDER", help="Output Folder (default: ./out)", default='./out')
-parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)", default=METAMLST_DBPATH)
+parser.add_argument("-d",'--database', metavar="DB PATH", help="Specify a different MetaMLST-Database. If unset, use the default Database. You can create a custom DB with metaMLST-index.py)")
 parser.add_argument("--filter", metavar="species1,species2...", help="Filter for specific set of organisms only (METAMLST-KEYs, comma separated. Use metaMLST-index.py --listspecies to get MLST keys)")
 parser.add_argument("--penalty", metavar="PENALTY", help="MetaMLST penaty for under-represented alleles", default=100, type=int)
 parser.add_argument("--minscore", metavar="MINSCORE", help="Minimum alignment score for each alignment to be considered valid", default=80, type=int)
@@ -57,19 +57,19 @@ if args.version: print_version()
 if not args.BAMFILE:
 	parser.print_help()
 	sys.exit(0)
-#PREPARE 
+#PREPARE
+ 
 try:
-	#if not os.path.isfile(args.database):
-	#	download('https://bitbucket.org/CibioCM/metamlst/downloads/metamlstDB_2017.db', args.database)
+	#download the database if a non existing (but default-named) DB file is passed
+	if not args.database:
+		dbPath=check_install()
+	else:
+		dbPath=args.database
 
-	if not os.path.isdir(os.path.dirname(METAMLST_DBPATH)):
-		os.mkdir(os.path.dirname(METAMLST_DBPATH),mode=0o775)
-	download('https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1', args.database+'.zip')
-
-	metaMLSTDB = metaMLST_db(args.database)
+	metaMLSTDB = metaMLST_db(dbPath)
 	conn = metaMLSTDB.conn
-	c = metaMLSTDB.cursor 
-	
+	cursor = metaMLSTDB.cursor
+
 except IOError: 
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
 	sys.exit(1)
@@ -172,12 +172,16 @@ if args.log:
 	dfil.close()	
 
  
-if not args.quiet: print ('\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(80,'-')+bcolors.ENDC)
+if not args.quiet:
+	print (bcolors.OKBLUE+'Sample file: '+bcolors.ENDC+os.path.realpath(fileName))
+	print (bcolors.OKBLUE+'MetaMLST Database file: '+bcolors.ENDC+os.path.basename(dbPath)+'\n')
+	#print ('\r\n'+bcolors.OKBLUE+('  '+fileName+'  ').center(80,'-')+bcolors.ENDC)
+	
 
 for speciesKey,species in cel.items():
 	
 	#tVar is the dictionary of locus detected in the organism
-	tVar = dict([(row['geneName'],0) for row in  c.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
+	tVar = dict([(row['geneName'],0) for row in  cursor.execute("SELECT geneName FROM genes WHERE bacterium = ?",(speciesKey,))])
 	
 	#GENE PRESENCE 
 	
@@ -218,8 +222,8 @@ for speciesKey,species in cel.items():
 			closeAllelesList = ','.join([str(a) for a in sorted(aElements.keys(), key=lambda x: int(x))][:5])+('... ('+str(len(aElements))+' more)'  if len(aElements) > 5 else '')
 		
 			sequenceKey = speciesKey+'_'+geneKey
-			c.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
-			genL = c.fetchone()['L']
+			cursor.execute("SELECT LENGTH(sequence) as L FROM alleles WHERE bacterium = ? AND gene = ? ORDER BY L DESC LIMIT 1", (speciesKey,geneKey))
+			genL = cursor.fetchone()['L']
 
 			coverage = sum([x for x in sequenceBank[sequenceKey].values()])
 

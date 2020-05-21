@@ -19,9 +19,6 @@ try:
 except ImportError as e:
 	print("Error while importing Biopython. Please check Biopython is installed properly on your system!")
 	sys.exit(1)
-	   
-
-METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -32,8 +29,7 @@ parser.add_argument("-s", "--sequences", help="Sequences in FASTA format (comma 
 parser.add_argument("-q","--dump_db", help="Dump the entire database to file in fasta format)") 
 parser.add_argument("-i","--buildindex", help="Build a Bowtie2 Index from the DB") 
 parser.add_argument("-b","--buildblast", help="Build a BLAST Index from the DB") 
-
-parser.add_argument("-d",'--database', metavar="DB PATH", help="MetaMLST Database File (if unset, use the default database. If a file name is given, MetaMLST will create a new DB or update an existing one)", default=METAMLST_DBPATH)
+parser.add_argument("-d",'--database', metavar="DB PATH", help="MetaMLST Database File (if unset, use the default database. If a file name is given, MetaMLST will create a new DB or update an existing one)")
 parser.add_argument("--list", help="Lists all the MLST keys present in the database and exit", action="store_true") 
 parser.add_argument("--filter", help="filters the db for a specific bacterium", default=None) 
 parser.add_argument("--version", help="Prints version informations", action='store_true')
@@ -43,49 +39,35 @@ parser.add_argument('--bowtie2_build', type=str, default='bowtie2-build',
         help="Full path to the bowtie2-build command to use, deafult assumes "
              "that 'bowtie2-build is present in the system path")
 
-#parser.add_argument("--help", help="Prints help message", action='store_true')
-
 
 args=parser.parse_args()
 if args.version:
 	print_version()
 	sys.exit(0)
-if args.database is None:
-	print_version()
-	parser.print_help()
-	sys.exit(0)
 
 try:
 	#download the database if a non existing (but default-named) DB file is passed
-	if args.database == METAMLST_DBPATH and not os.path.isfile(args.database):
-		import zipfile
+	if not args.database:
+		dbPath=check_install()
+	else:
+		dbPath=args.database
 
-		if not os.path.isdir(os.path.dirname(METAMLST_DBPATH)):
-			os.mkdir(os.path.dirname(METAMLST_DBPATH),mode=0o775)
-		download('https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1', args.database+'.zip')
-
-		if os.path.isfile(METAMLST_DBPATH+'.zip'):
-			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')
-			zip_ref.extractall(os.path.dirname(METAMLST_DBPATH))
-			zip_ref.close()
-
-
-	metaMLSTDB = metaMLST_db(args.database)
+	metaMLSTDB = metaMLST_db(dbPath)
 	conn = metaMLSTDB.conn
-	cursor = metaMLSTDB.cursor 
+	cursor = metaMLSTDB.cursor
 
 except IOError: 
 	metamlst_print("Failed to connect to the database: please check your database file!",'FAIL',bcolors.FAIL)
 	sys.exit(1)
 
-if os.path.isfile(args.database):
+if os.path.isfile(dbPath):
 	try:
 		cursor.execute("CREATE TABLE IF NOT EXISTS organisms (organismkey varchar(255), label VARCHAR(255), PRIMARY KEY(organismkey))")
 		cursor.execute("CREATE TABLE IF NOT EXISTS genes (geneName varchar(255), bacterium VARCHAR(255), PRIMARY KEY(geneName,bacterium))")
 		cursor.execute("CREATE TABLE IF NOT EXISTS alleles (recID INTEGER PRIMARY KEY AUTOINCREMENT,bacterium varchar(255), gene VARCHAR(255), sequence TEXT, alignedSequence TEXT, alleleVariant INT)")
 		cursor.execute("CREATE TABLE IF NOT EXISTS profiles (recID INTEGER PRIMARY KEY AUTOINCREMENT, profileCode INTEGER, bacterium VARCHAR(255), alleleCode INTEGER)")
 	
-		print("Database "+args.database+' contains:')
+		print("Database "+dbPath+' contains:')
 		cursor.execute("SELECT COUNT(*) as Mv FROM organisms WHERE 1")
 		print ('\t'+str(cursor.fetchone()['Mv'])+' organisms')
 		cursor.execute("SELECT COUNT(*) as Mv FROM genes WHERE 1")
@@ -227,7 +209,7 @@ if args.typings or args.sequences:
 						for element in recIDs:
 							profilesQuery.append((organism,data[0],element))
 			if profilesLoaded>0:
-				cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))				
+				cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))
 
 			#last update to percentage
 			percentCompleted = float(profilesLoaded) / float(leng)*100.0

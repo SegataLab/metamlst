@@ -26,8 +26,8 @@ except ImportError:
 	from io import StringIO
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '1.2'
-__date__ = '12 June 2018'
+__version__ = '1.2.1'
+__date__ = '21 May 2020'
 
 def byte_to_megabyte(byte):
     """
@@ -35,6 +35,27 @@ def byte_to_megabyte(byte):
     """
 
     return byte / (1024.0**2)
+
+
+def check_install():
+	import zipfile,os
+	METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
+	METAMLST_DBFOLDER=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/'
+	METAMLST_URL='https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1'
+
+	if not os.path.isdir(METAMLST_DBFOLDER):
+		os.mkdir(METAMLST_DBFOLDER,mode=0o775)
+
+	if not os.path.isfile(METAMLST_DBPATH):
+		download(METAMLST_URL, METAMLST_DBPATH+'.zip')
+
+		if os.path.isfile(METAMLST_DBPATH+'.zip'):
+			zip_ref = zipfile.ZipFile(METAMLST_DBPATH+'.zip', 'r')
+			zip_ref.extractall(METAMLST_DBFOLDER)
+			zip_ref.close()
+
+	if os.path.isfile(METAMLST_DBPATH):
+		return METAMLST_DBPATH
 
 
 class ReportHook():
@@ -83,7 +104,7 @@ def download(url, download_file):
 
     if not os.path.isfile(download_file):
         try:
-            sys.stderr.write("\nDownloading " + url + "\n")
+            sys.stderr.write("\nDownloading " + url + " to "+download_file+"\n")
             file, headers = urlretrieve(url, download_file,
                                         reporthook=ReportHook().report)
         except EnvironmentError:
@@ -417,7 +438,7 @@ class metaMLST_db:
 			self.conn.row_factory = sqlite3.Row
 			self.cursor = self.conn.cursor()
 		except IOError: 
-			print ("IOError: unable to access "+args.database+"!")
+			print ("IOError: unable to access database "+dbPath)
 	
 	def closeConnection(self):
 		self.conn.close()
