@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 import sys,os,subprocess,argparse,os
 
@@ -26,7 +26,7 @@ except ImportError:
     sys.stderr.write("Error! Biopython Alphabet library not detected!\n")
     sys.exit(1)
     
-try: from cStringIO import StringIO
+try: from io import StringIO
 except ImportError:
     sys.stderr.write("Error! Biopython cStringIO library not detected!\n")
     sys.exit(1)
@@ -65,10 +65,10 @@ except IOError:
 	sys.exit(1)
 
 if args.profile=='?':
-	print 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30)
-	print '-'*65
+	print( 'Organism Name'.ljust(30)+(' '*5)+'MetaMLST key'.ljust(30))
+	print('-'*65)
 	for key,label in metaMLSTDB.getOrganisms().items():
-		print key.ljust(30)+(' ')*5+label.ljust(30)
+		print (key.ljust(30)+(' ')*5+label.ljust(30))
 	sys.exit(0)
 
 masterLog = open(args.work+'/data_'+args.profile+'.txt','w')
@@ -76,12 +76,13 @@ masterLog = open(args.work+'/data_'+args.profile+'.txt','w')
 if not args.blastdb_prefix: #if no index, create
 		
 	seqStream = StringIO()
-	SeqIO.write(metaMLSTDB.getAlleles(args.profile),seqStream,'fasta') 
+	SeqIO.write(metaMLSTDB.getAlleles(args.profile),seqStream,'fasta')
 		
 	devnull = open('/dev/null', 'w')
-	child = subprocess.Popen("makeblastdb -in - -dbtype nucl -title abc -out mlstdbx_"+args.profile,shell=True, stdout=devnull, stdin=subprocess.PIPE)
+	child = subprocess.Popen("makeblastdb -in - -dbtype nucl -title abc -out mlstdbx_"+args.profile,shell=True, stdout=devnull, stdin=subprocess.PIPE,text=True)
+	#print(seqStream.getvalue())
 	child.communicate(seqStream.getvalue())
-	child.wait() 
+	child.wait()
 
 profileKeys=metaMLSTDB.getGeneNames(args.profile)
 masterLog.write('SAMPLE\tBACTERIUM\tST\tST_ACCURACY\t'+'\t'.join([k+'\t'+k+'_perc_iden\t'+k+'_len_of_gene\t'+k+'_len_aligned' for k in sorted(profileKeys)])+'\r\n')
@@ -105,7 +106,7 @@ for file in subFiles:
 	blasted= []
 	dbb = 'mlstdbx_'+args.profile if not args.blastdb_prefix else args.blastdb_prefix
 	
-	child = subprocess.Popen('blastn -query '+prefix+file+' -max_target_seqs 100000 -outfmt "6 qseqid sseqid qlen slen length pident qseq sseq sstart send score" -db '+dbb,shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE)
+	child = subprocess.Popen('blastn -query '+prefix+file+' -max_target_seqs 100000 -outfmt "6 qseqid sseqid qlen slen length pident qseq sseq sstart send score" -db '+dbb,shell=True, stdout=subprocess.PIPE, stdin = subprocess.PIPE,text=True)
 	out = StringIO(child.communicate()[0]) 
 
 	for line in out.getvalue().split('\n'):  
