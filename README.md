@@ -8,14 +8,14 @@ MetaMLST is a software tool that performs an *in-silico* Multi Locus Sequence Ty
 * Strain level identification
 * Microbial population analysis
 
+### How can I use it? ###
+
+Check out the [**Quick Start**](https://github.com/SegataLab/metamlst/wiki#-quick-start) or refer to the [**Wiki**](https://github.com/SegataLab/metamlst/wiki/) for the *documentation*. You can also try the [**examples**](https://www.dropbox.com/s/xmbjj37k612f0rr/metamlst_examples.zip?dl=1), or take a look to the [**Examples**](https://github.com/SegataLab/metamlst/wiki/Examples) section
+
 ### How it works? ###
 
 MetaMLST reconsctructs the MLST loci-sequences using the closest reference from the publicly available datsets (PubMLST) and traces the most abundant strain of each species:
 ![MetaMLST pipeline schema](http://segatalab.github.io/images/metamlst_working_concept.jpg)
-
-### How can I use it? ###
-
-Please refer to the [**Wiki**](https://github.com/SegataLab/metamlst/wiki/) for the *documentation*. You can also try the [**examples**](https://www.dropbox.com/s/xmbjj37k612f0rr/metamlst_examples.zip?dl=1), or take a look to the [**Examples**](https://github.com/SegataLab/metamlst/wiki/Examples) section
 
 ### Where can I get support? ###
 
