@@ -21,10 +21,6 @@ except ImportError:
     sys.stderr.write("Error! Biopython SeqRecord library not detected!\n")
     sys.exit(1)
     
-try: from Bio.Alphabet import IUPAC 
-except ImportError:
-    sys.stderr.write("Error! Biopython Alphabet library not detected!\n")
-    sys.exit(1)
     
 try: from io import StringIO
 except ImportError:
@@ -141,7 +137,7 @@ for file in subFiles:
 		perc = float(cdict['pident'])
 		slen = int(cdict['slen']) #length of the gene (subject = DB)
 		leng = int(cdict['leng']) #length of the match (genomic read)
-		qSeq = Seq(cdict['seq'],IUPAC.unambiguous_dna)
+		qSeq = Seq(cdict['seq'])
 		# qSeq =   #length of the match (genomic read)
 		qstart = int(cdict['start'])
 		qend = int(cdict['end'])
@@ -152,7 +148,7 @@ for file in subFiles:
 			qSeq = qSeq.reverse_complement()
 			qstart,qend = qend,qstart 
 		   
-		dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend),IUPAC.unambiguous_dna),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')		
+		dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend)),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')		
 		
 		#Correct Len, Perfect match			GREEN
 		#Correct Len, Non-perfect match		YELLOW 

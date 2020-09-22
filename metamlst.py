@@ -19,9 +19,9 @@ except ImportError as e:
 try:
 	from Bio import SeqIO
 	from Bio.Seq import Seq
-	from Bio.SeqRecord import SeqRecord
-	from Bio.Alphabet import IUPAC
+	from Bio.SeqRecord import SeqRecord 
 except ImportError as e:
+	print(e)
 	metamlst_print("Failed in importing Biopython. Please check Biopython is installed properly on your system!",'FAIL',bcolors.FAIL)
 	sys.exit(1)
  

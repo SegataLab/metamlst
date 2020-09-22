@@ -18,7 +18,6 @@ import pysam
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
-from Bio.Alphabet import IUPAC
 
 try:
 	from StringIO import StringIO
@@ -155,8 +154,8 @@ def dump_db_to_fasta(conn,path,filterb=None):
 	metamlst_print("COLLECTING DATA...",'...',bcolors.ENDC)
 	sys.stdout.flush()
 	
-	if filterb is None: strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
-	else: strr=[SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ?",(filterb,))]
+	if filterb is None: strr=[SeqRecord(Seq(row['sequence']),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> ''")]	
+	else: strr=[SeqRecord(Seq(row['sequence']),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description='') for row in cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ?",(filterb,))]
 
 	SeqIO.write(strr,path,'fasta')
 	return len(strr)
@@ -274,7 +273,7 @@ def buildConsensus(bamFile,chromosomeList,filterScore,max_xM,debugMode,legacy=Fa
 			i+=1
 
 		sequen = ''.join(rSequen)
-		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+		seqRec.append(SeqRecord(Seq(sequen),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 
 	print ('\r', end='')
 	vf.bam_handle.close() 
@@ -403,7 +402,7 @@ def buildConsensus_legacy(bamFile,chromosomeList,filterScore,max_xM,debugMode,le
 		sequen = ''.join(rSequen)
 		
 			
-		seqRec.append(SeqRecord(Seq(sequen,IUPAC.unambiguous_dna),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
+		seqRec.append(SeqRecord(Seq(sequen),id=chromo, description = 'CI::'+str(cIndex)+'_SP::'+str(SNPs)))
 	print ('\r', end='')
 	return seqRec
 
@@ -454,13 +453,13 @@ class metaMLST_db:
 	def getAlleles(self,profile):
 		listAlleles = []
 		for row in self.cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ?",(profile,)):
-			listAlleles.append(SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
+			listAlleles.append(SeqRecord(Seq(row['sequence']),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
 		return listAlleles
 		
 	def getGene(self,profile,geneName):
 		listAlleles = []
 		for row in self.cursor.execute("SELECT bacterium,gene,alleleVariant,sequence FROM alleles WHERE sequence <> '' AND bacterium = ? AND gene = ?",(profile,geneName)):
-			listAlleles.append(SeqRecord(Seq(row['sequence'],IUPAC.unambiguous_dna),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
+			listAlleles.append(SeqRecord(Seq(row['sequence']),id=row['bacterium']+'_'+(row['gene']+'_'+str(row['alleleVariant'])),description=''))
 		return listAlleles
 		
 	def getGeneNames(self,profile):

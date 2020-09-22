@@ -23,7 +23,6 @@ try:
 	from Bio import SeqIO
 	from Bio.Seq import Seq
 	from Bio.SeqRecord import SeqRecord
-	from Bio.Alphabet import IUPAC
 	from Bio.Align.Applications import MuscleCommandline
 except ImportError as e:
 	metamlst_print("Failed in importing Biopython. Please check Biopython is installed properly on your system!",'FAIL',bcolors.FAIL)
@@ -194,7 +193,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 				
 					
 				if geneName not in newSequences: newSequences[geneName] = []
-				newSequences[geneName].append(SeqRecord(Seq(geneSeq,IUPAC.unambiguous_dna),id=geneNewLabel, description = ''))
+				newSequences[geneName].append(SeqRecord(Seq(geneSeq),id=geneNewLabel, description = ''))
  
 		
 		meanAccuracy = sum_of_accuracies / float(len(bacteriumLine))
@@ -354,7 +353,7 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 			
 			label = bacterium+'_'+row['gene']+'_'+str(row['alleleVariant'])
 			if row['gene'] not in preaLignTable: preaLignTable[row['gene']] = []
-			preaLignTable[row['gene']].append(SeqRecord(Seq(row['sequence'], IUPAC.unambiguous_dna), id = label, description=''))
+			preaLignTable[row['gene']].append(SeqRecord(Seq(row['sequence']), id = label, description=''))
 
 		for seqGene,seqList in newSequences.items():
 			if seqGene not in preaLignTable: preaLignTable[seqGene] = []
@@ -441,22 +440,22 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 								else:
 									prog+=1
 									descriptionString = '-'.join([kll+'{'+str(ell)+'}' for kll,ell in i.items()  if kll in args.j.split(',')])
-									phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
+									phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
 									
 						#output one sequence, for the current ST with all the metadata grouped
-						if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
+						if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
 					else:
 						for profileInstance in STmapper[profileCode]:
 							metadataPointer = metadataJoinField if metadataJoinField in profileInstance else 'sampleID'
 							
-							phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
+							phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
 
 				
 				elif args.outseqformat == 'A+': #old, non present, but required to be added
 					for gen,all in sorted(profile.items()):
 						#print gen,all 
 						stSeq+=str(seqTable[bacterium+'_'+gen+'_'+str(all)])
-					phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id="ST_"+str(profileCode), description = ''))
+					phyloSeq.append(SeqRecord(Seq(stSeq),id="ST_"+str(profileCode), description = ''))
 
 						
 			#NEW
@@ -484,13 +483,13 @@ for bacterium,bactRecord in cel.items(): #For each bacterium:
 								#for (kl,v) in i.items():
 								prog+=1
 								descriptionString = '-'.join([kll+'{'+str(ell)+'}' for kll,ell in i.items() if kll in args.j.split(',')])
-								phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
+								phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+str(prog)+'_'+descriptionString, description = ''))
 					#output one sequence, for the current ST with all the metadata grouped
-					if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
+					if args.jgroup: phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+descriptionString, description = ''))
 				else:
 					for profileInstance in STmapper[profileCode]: 
 						metadataPointer = metadataJoinField if metadataJoinField in profileInstance else 'sampleID'
-						phyloSeq.append(SeqRecord(Seq(stSeq,IUPAC.unambiguous_dna),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
+						phyloSeq.append(SeqRecord(Seq(stSeq),id=bacterium+'_ST'+str(profileCode)+'_'+profileInstance[metadataPointer], description = ''))
 			
 			SeqIO.write(phyloSeq,args.folder+'/merged/'+bacterium+'_sequences.fna', "fasta")
 
