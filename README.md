@@ -1,11 +1,11 @@
 # MetaMLST #
 A computational pipeline for MLST typing from metagenomic data
 
-MetaMLST is a software tool that performs an *in-silico* Multi Locus Sequence Typing (MLST) Analysis on metagenomic samples. MetaMLST achieves cultivation- and assembly- free strain level tracking and detects all the species to which the standard MLST protocol is applicable.
+MetaMLST performs an *in-silico* Multi Locus Sequence Typing (MLST) Analysis on metagenomic samples. MetaMLST achieves cultivation- and assembly- free strain level tracking and detects all the species to which the standard MLST protocol is applicable.
 
 ### What can I use MetaMLST for? ###
 
-* Strain level identification
+* Strain-level identification
 * Microbial population analysis
 
 ### How can I use it? ###
@@ -20,7 +20,7 @@ MetaMLST reconsctructs the MLST loci-sequences using the closest reference from 
 ### Where can I get support? ###
 
 * Bugs and Support: [**MetaMLST Users Support Group**](https://groups.google.com/forum/#!forum/metamlst)
-* Project page at [SegataLab](http://segatalab.bitbucket.io/tools/metamlst)
+* Project page at [SegataLab](http://segatalab.cibio.unitn.it/tools/metamlst/index.html)
 * Project [Wiki](https://github.com/SegataLab/metamlst/wiki/)
 
 ### Publication ###
