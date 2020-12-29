@@ -13,7 +13,7 @@ try:
 	import sys
 	from metaMLST_functions import *
 except ImportError as e:
-	print ("Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re\nError: "+str(e))
+	print ("Error while importing python modules! Remember that this script requires: sys, os, subprocess, sqlite3, argparse, re and pysam\nError: "+str(e))
 	sys.exit(1)
 
 try:

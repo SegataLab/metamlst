@@ -6,9 +6,7 @@ try:
 	import sys,os,subprocess,sqlite3,argparse,re
 	from metaMLST_functions import *
 except ImportError as e:
-	print("Error while importing python modules! Remember that this script requires: sys,os,subprocess,sqlite3,argparse,re")
-	
-
+	print("Error while importing python modules! Remember that this script requires: sys, os, subprocess, sqlite3, argparse, re and pysam. Error:"+str(e))
 	sys.exit(1)
 
 try:

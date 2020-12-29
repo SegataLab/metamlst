@@ -25,8 +25,8 @@ except ImportError:
 	from io import StringIO
 
 __author__ = 'Moreno Zolfo (moreno.zolfo@unitn.it)'
-__version__ = '1.2.1'
-__date__ = '21 May 2020'
+__version__ = '1.2.2'
+__date__ = '29 December 2020'
 
 def byte_to_megabyte(byte):
     """
@@ -38,9 +38,9 @@ def byte_to_megabyte(byte):
 
 def check_install():
 	import zipfile,os
-	METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2019.db'
+	METAMLST_DBPATH=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/metamlstDB_2021.db'
 	METAMLST_DBFOLDER=os.path.abspath(os.path.dirname(__file__))+'/metamlst_databases/'
-	METAMLST_URL='https://www.dropbox.com/s/d6mkjha1k7ob383/metamlstDB_2019.db.zip?dl=1'
+	METAMLST_URL='https://zenodo.org/record/4399251/files/metamlstDB_2021.db.zip?download=1'
 
 	if not os.path.isdir(METAMLST_DBFOLDER):
 		os.mkdir(METAMLST_DBFOLDER,mode=0o775)
