@@ -164,40 +164,34 @@ if args.typings or args.sequences:
 					cursor.execute("INSERT OR IGNORE INTO organisms (organismkey,label) VALUES (?,?)",(organism,organismLabel))
 					cursor.execute("DELETE FROM profiles WHERE bacterium = ?",(organism,))
 					metamlst_print('DELETED all profiles for '+organismLabel,'DONE',bcolors.OKGREEN)
-					 
+
 					continue
-					     
+
 				data = line.split()
 				recID_Cache = dict((row['gene']+'_'+str(row['alleleVariant']),row['recID']) for row in cursor.execute("SELECT gene,alleleVariant,recID FROM alleles WHERE bacterium = ?",(organism,))) 
 				problematic = False
 				if intest:
-					
+
 					metamlst_print('READING MLST loci for '+organismLabel,'....',bcolors.OKGREEN)
 					sys.stdout.flush()
 					intest = 0
 					genes = data[1::]
-					
+
 					metamlst_print(' > '+', '.join([g for g in genes if g not in MLST_KEYWORDS]),'DONE',bcolors.OKGREEN)
-					
+
 					sys.stdout.flush()
 				else:
 					recIDs = []
 					sys.stdout.flush()
- 
-					
+
 					for key,variant in enumerate(data[1::]):
-						
-						if key < len(genes): 
-							
+						if key < len(genes):
 							if (genes[key]+'_'+str(variant)) in recID_Cache: recIDs.append(recID_Cache[genes[key]+'_'+str(variant)])
-							
-							elif genes[key] in ['clonal_complex','clonal-complex','species','mlst_clade']: continue
+							elif genes[key] in ['clonal_complex','clonal-complex','species','mlst_clade','Lineage','comments','CC','mlst-clade']: continue
 							else:
 								if str(data[0]) not in problematicList: problematicList[str(data[0])] = []
 								problematicList[str(data[0])].append(organism+'_'+genes[key]+'_'+variant)
 								problematic = True
-				
-					#print "\r"+(" CHECKING PROFILES").ljust(24)+(' '+organism+' ST-'+data[0]).ljust(17) + ('[ - '+(str(int(float(profilesLoaded) / float(leng)*100))+'%').rjust(3)+' - ]').rjust(30),
 					percentCompleted = float(profilesLoaded) / float(leng)*100.0
 
 					metamlst_print('CHECKING PROFILE ['+organism+ ' ' + data[0] + ']',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True)
@@ -214,22 +208,19 @@ if args.typings or args.sequences:
 			percentCompleted = float(profilesLoaded) / float(leng)*100.0
 
 			metamlst_print(str(profilesLoaded)+'/'+str(leng)+' PROFILES LOADED',str(int(percentCompleted))+'%',bcolors.OKGREEN,reline=True,newLine=True)
-			
 			cursor.executemany("INSERT INTO profiles (bacterium, profileCode, alleleCode) VALUES (?,?,?)", profilesQuery)
-			
 			if len(problematicList) > 0:
 				with open('metamlst_logfile.log','a') as logf:
 					logf.write('The following STs for '+organism+' were skipped as one or more of the alleles comprising the profile could not be found in your DB:\r\n')
 					for key,element in problematicList.items():
 						logf.write('ST-'+' '+key+'\t'.join(element)+' was missing \r\n')
 					logf.write(('-'*120)+'r\n')
-				
 			#print '\r'+(' COMPLETED '+organism).ljust(26),('Added '+str(profilesLoaded)+' STs').rjust(25)+' '+(bcolors.OKGREEN+'[ - DONE - ]'+bcolors.ENDC).rjust(28) 
 			metamlst_print('COMPLETED '+organism,'DONE',bcolors.OKGREEN)
 
 if args.dump_db:
 	dump_db_to_fasta(conn,args.dump_db,args.filter)
-	
+
 if args.buildindex:
 
 	if os.path.isfile(args.buildindex+'.1.bt2'):
@@ -238,7 +229,6 @@ if args.buildindex:
 		dump_db_to_fasta(conn,'out.fa',args.filter)
 		metamlst_print('BUILDING INDEX','...',bcolors.HEADER)
 		sys.stdout.flush()
-		
 
 		bt2_cmd = [args.bowtie2_build, '--quiet']
 
