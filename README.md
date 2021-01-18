@@ -10,6 +10,11 @@ MetaMLST performs an *in-silico* Multi Locus Sequence Typing (MLST) Analysis on 
 
 ### How can I use it? ###
 
+This repo contains sub-repositories, to clone it use:
+```
+git clone --recurse-submodules https://github.com/SegataLab/metamlst.git
+```
+
 Check out the [**Quick Start**](https://github.com/SegataLab/metamlst/wiki#-quick-start) or refer to the [**Wiki**](https://github.com/SegataLab/metamlst/wiki/) for the *documentation*. You can also try the [**examples**](https://zenodo.org/record/4399251/files/metamlst_examples.zip?download=1), or take a look to the [**Examples**](https://github.com/SegataLab/metamlst/wiki/Examples) section
 
 ### How it works? ###
