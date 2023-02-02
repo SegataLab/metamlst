@@ -27,7 +27,7 @@ MetaMLST reconsctructs the MLST loci-sequences using the closest reference from 
 ### Databases ###
 
 MetaMLST automatically downloads the latest version of its database. You can also manually download databases from [here](https://zenodo.org/record/4399251#.X-uTwVn0muU). 
-The latest database is: **metamlstDB_2021**.
+The latest database is: **metamlstDB_2022**.
 
 ### Publication ###
 
