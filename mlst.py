@@ -143,33 +143,34 @@ for file in subFiles:
 		qend = int(cdict['end'])
 		
 		(organism,gene,allele) = target.split('_')
-		  
-		if qstart > qend:#reverse
-			qSeq = qSeq.reverse_complement()
-			qstart,qend = qend,qstart 
-		   
-		dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend)),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')		
 		
-		#Correct Len, Perfect match			GREEN
-		#Correct Len, Non-perfect match		YELLOW 
-		#Wrong Len, Perfect match			CYAN
-		#Wrong Len, Non-perfect match		RED
-		if perc == 100.0 and slen == leng: color = (bcolors.OKGREEN,'','','')
-		elif perc == 100.0 and slen != leng: color = (bcolors.WARNING,'',bcolors.WARNING,'*')
-		elif perc != 100.0 and slen == leng: color = (bcolors.OKBLUE,bcolors.OKBLUE,'','*')
-		elif perc != 100.0 and slen != leng: color = (bcolors.RED,bcolors.RED,bcolors.RED,'*')
-		 
-		allelic[gene]['allele'] = str(allele)
-		allelic[gene]['perc'] = str(perc)
-		allelic[gene]['len'] = str(leng)+'/'+str(slen)
-		allelic[gene]['leng'] = str(leng)
-		allelic[gene]['slen'] = str(slen)
-		allelic[gene]['color'] = color  
-		allelic[gene]['target'] = target  
-		
-		allelic[gene]['sequence'] = dashSequence  
-		
-		if perc == 100.0:  profilic.append(target)
+		if gene in allelic:	  
+			if qstart > qend:#reverse
+				qSeq = qSeq.reverse_complement()
+				qstart,qend = qend,qstart 
+			   
+			dashSequence = SeqRecord(Seq('-'*(qstart-1)+str(qSeq)+'-'*(slen-qend)),id=target+'_'+str(perc)+'_'+str(leng)+'/'+str(slen),description='')		
+			
+			#Correct Len, Perfect match			GREEN
+			#Correct Len, Non-perfect match		YELLOW 
+			#Wrong Len, Perfect match			CYAN
+			#Wrong Len, Non-perfect match		RED
+			if perc == 100.0 and slen == leng: color = (bcolors.OKGREEN,'','','')
+			elif perc == 100.0 and slen != leng: color = (bcolors.WARNING,'',bcolors.WARNING,'*')
+			elif perc != 100.0 and slen == leng: color = (bcolors.OKBLUE,bcolors.OKBLUE,'','*')
+			elif perc != 100.0 and slen != leng: color = (bcolors.RED,bcolors.RED,bcolors.RED,'*')
+			 
+			allelic[gene]['allele'] = str(allele)
+			allelic[gene]['perc'] = str(perc)
+			allelic[gene]['len'] = str(leng)+'/'+str(slen)
+			allelic[gene]['leng'] = str(leng)
+			allelic[gene]['slen'] = str(slen)
+			allelic[gene]['color'] = color  
+			allelic[gene]['target'] = target  
+			
+			allelic[gene]['sequence'] = dashSequence  
+			
+			if perc == 100.0:  profilic.append(target)
 		
 	
 	
