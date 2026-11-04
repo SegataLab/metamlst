@@ -270,7 +270,7 @@ for speciesKey,species in cel.items():
 
 			else:
 				newAllele = '--'
-				if not args.a: l.seq = ''
+				if not args.a: l.seq = Seq('')
 			
 			if not args.quiet: print ("  "+bcolors.WARNING+(l.id.split('_')[1]).ljust(7)+bcolors.ENDC+(l.id.split('_')[2]).ljust(7)+leng.rjust(7)+holes.rjust(7)+str(snps).rjust(7)+leng_ns.rjust(15)+newAllele.rjust(10))
 			
